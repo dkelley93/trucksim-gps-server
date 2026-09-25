@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -8,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Funbit.Ets.Telemetry.Server.Controllers;
+using Funbit.Ets.Telemetry.Server.Data;
 
 namespace Funbit.Ets.Telemetry.Server
 {
@@ -65,6 +67,9 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Info("  - GET  /              (Status page)");
                     Log.Info("  - GET  /api/ets2/telemetry  (Telemetry JSON)");
                     Log.Info("  - POST /api/ets2/telemetry  (Telemetry JSON)");
+                    Log.Info("  - GET  /api/game/state        (Active profile state)");
+                    Log.Info("  - GET  /api/game/profiles     (Game profile list)");
+                    Log.Info("  - GET  /api/game/profile-mods (Profile mod list)");
                 }
                 catch (Exception ex)
                 {
@@ -173,7 +178,22 @@ namespace Funbit.Ets.Telemetry.Server
                                     h.StartsWith("Connection:", StringComparison.OrdinalIgnoreCase) &&
                                     h.IndexOf("close", StringComparison.OrdinalIgnoreCase) >= 0);
 
-                            var response = RouteRequest(request);
+                            HttpResponse response;
+                            try
+                            {
+                                response = RouteRequest(request);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error("Error routing request", ex);
+                                response = new HttpResponse
+                                {
+                                    StatusCode = 500,
+                                    StatusText = "Internal Server Error",
+                                    ContentType = "text/plain",
+                                    Body = "Internal Server Error"
+                                };
+                            }
                             await SendHttpResponseAsync(stream, response, closeConnection: clientWantsClose);
 
                             if (clientWantsClose)
@@ -239,8 +259,22 @@ namespace Funbit.Ets.Telemetry.Server
         {
             Log.DebugFormat("Request: {0} {1}", request.Method, request.Path);
 
-            // Normalize path
-            var path = request.Path.TrimEnd('/');
+            // Normalize path and split off the query string
+            var path = request.Path;
+            var query = new Dictionary<string, string>();
+            int queryIndex = path.IndexOf('?');
+            if (queryIndex >= 0)
+            {
+                foreach (var pair in path.Substring(queryIndex + 1).Split('&'))
+                {
+                    int eq = pair.IndexOf('=');
+                    if (eq > 0)
+                        query[Uri.UnescapeDataString(pair.Substring(0, eq))] =
+                            Uri.UnescapeDataString(pair.Substring(eq + 1));
+                }
+                path = path.Substring(0, queryIndex);
+            }
+            path = path.TrimEnd('/');
             if (string.IsNullOrEmpty(path))
                 path = "/";
 
@@ -252,6 +286,10 @@ namespace Funbit.Ets.Telemetry.Server
             else if (path == "/api/ets2/telemetry")
             {
                 return HandleTelemetryRequest(request);
+            }
+            else if (path == "/api/game/state" || path == "/api/game/profiles" || path == "/api/game/profile-mods")
+            {
+                return HandleGameProfileRequest(request, path, query);
             }
             else
             {
@@ -278,8 +316,8 @@ namespace Funbit.Ets.Telemetry.Server
                 };
             }
 
-            // Use the shared HTML template from Ets2AppController with bypass notice enabled
-            var html = Ets2AppController.GetStatusPageHtml(showBypassNotice: true);
+            // Use the shared HTML template with bypass notice enabled
+            var html = TelemetryEndpoints.GetStatusPageHtml(showBypassNotice: true);
 
             return new HttpResponse
             {
@@ -306,7 +344,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             try
             {
-                var telemetryJson = Ets2TelemetryController.GetEts2TelemetryJson();
+                var telemetryJson = TelemetryEndpoints.GetEts2TelemetryJson();
 
                 return new HttpResponse
                 {
@@ -314,13 +352,122 @@ namespace Funbit.Ets.Telemetry.Server
                     StatusText = "OK",
                     ContentType = "application/json; charset=utf-8",
                     Body = telemetryJson,
-                    CacheControl = "no-cache",
-                    EnableCors = true
+                    CacheControl = "no-cache"
                 };
             }
             catch (Exception ex)
             {
                 Log.Error("Error getting telemetry data", ex);
+
+                return new HttpResponse
+                {
+                    StatusCode = 500,
+                    StatusText = "Internal Server Error",
+                    ContentType = "text/plain",
+                    Body = "Internal Server Error"
+                };
+            }
+        }
+
+        private static bool IsAddressedByIp(HttpRequest request)
+        {
+            var header = request.Headers?.FirstOrDefault(
+                h => h.StartsWith("Host:", StringComparison.OrdinalIgnoreCase));
+            if (header == null)
+                return false;
+
+            var host = header.Substring("Host:".Length).Trim();
+            int portSeparator = host.LastIndexOf(':');
+            if (portSeparator > 0 && host.IndexOf(']') < portSeparator)
+                host = host.Substring(0, portSeparator);
+            host = host.Trim('[', ']');
+
+            IPAddress address;
+            return host == "localhost" || IPAddress.TryParse(host, out address);
+        }
+
+        private HttpResponse HandleGameProfileRequest(HttpRequest request, string path, Dictionary<string, string> query)
+        {
+            if (request.Method != "GET")
+            {
+                return new HttpResponse
+                {
+                    StatusCode = 405,
+                    StatusText = "Method Not Allowed",
+                    ContentType = "text/plain",
+                    Body = "Method Not Allowed"
+                };
+            }
+
+            // Profile data is more identifying than telemetry, so only accept requests
+            // addressed by address: a browser doing DNS rebinding sends its own hostname.
+            if (!IsAddressedByIp(request))
+            {
+                return new HttpResponse
+                {
+                    StatusCode = 403,
+                    StatusText = "Forbidden",
+                    ContentType = "text/plain",
+                    Body = "Forbidden"
+                };
+            }
+
+            string game;
+            query.TryGetValue("game", out game);
+            if (!GameProfileEndpoints.IsValidGame(game))
+            {
+                return new HttpResponse
+                {
+                    StatusCode = 400,
+                    StatusText = "Bad Request",
+                    ContentType = "text/plain",
+                    Body = "Missing or invalid 'game' parameter (expected ets2 or ats)"
+                };
+            }
+
+            try
+            {
+                string json;
+                if (path == "/api/game/state")
+                {
+                    json = GameProfileEndpoints.GetStateJson(game);
+                }
+                else if (path == "/api/game/profiles")
+                {
+                    json = GameProfileEndpoints.GetProfilesJson(game);
+                }
+                else
+                {
+                    string id, type;
+                    query.TryGetValue("id", out id);
+                    query.TryGetValue("type", out type);
+                    // The id must be a hex-encoded profile name; anything else could act as a path fragment.
+                    if (string.IsNullOrEmpty(id) || GameProfileScanner.TryDecodeHexName(id) == null ||
+                        (type != "local" && type != "steam"))
+                    {
+                        return new HttpResponse
+                        {
+                            StatusCode = 400,
+                            StatusText = "Bad Request",
+                            ContentType = "text/plain",
+                            Body = "Missing or invalid 'id'/'type' parameters"
+                        };
+                    }
+                    json = GameProfileEndpoints.GetProfileModsJson(game, id, type);
+                }
+
+                return new HttpResponse
+                {
+                    StatusCode = 200,
+                    StatusText = "OK",
+                    ContentType = "application/json; charset=utf-8",
+                    Body = json,
+                    CacheControl = "no-cache"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Error handling game profile request", ex);
 
                 return new HttpResponse
                 {
@@ -354,13 +501,6 @@ namespace Funbit.Ets.Telemetry.Server
             if (!string.IsNullOrEmpty(response.CacheControl))
             {
                 responseBuilder.AppendFormat("Cache-Control: {0}\r\n", response.CacheControl);
-            }
-
-            if (response.EnableCors)
-            {
-                responseBuilder.Append("Access-Control-Allow-Origin: *\r\n");
-                responseBuilder.Append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
-                responseBuilder.Append("Access-Control-Allow-Headers: Content-Type\r\n");
             }
 
             responseBuilder.Append("\r\n");
@@ -401,7 +541,6 @@ namespace Funbit.Ets.Telemetry.Server
             public string ContentType { get; set; }
             public string Body { get; set; }
             public string CacheControl { get; set; }
-            public bool EnableCors { get; set; }
         }
     }
 }
