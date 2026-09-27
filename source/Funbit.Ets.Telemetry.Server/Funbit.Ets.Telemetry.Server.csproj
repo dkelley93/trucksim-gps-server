@@ -77,6 +77,7 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
@@ -115,6 +116,7 @@
     <Compile Include="Data\ProfileWatcher.cs" />
     <Compile Include="Data\TruckersMpWatcher.cs" />
     <Compile Include="Data\GameProfileScanner.cs" />
+    <Compile Include="Data\GameHomeResolver.cs" />
     <!-- Vendored SIIDecryptSharp (see SiiDecrypt\LICENSE) -->
     <Compile Include="SiiDecrypt\BSII_Decoder.cs" />
     <Compile Include="SiiDecrypt\BSII_Serializer.cs" />

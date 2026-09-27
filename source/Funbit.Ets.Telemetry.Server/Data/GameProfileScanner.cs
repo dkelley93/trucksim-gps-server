@@ -62,7 +62,8 @@ namespace Funbit.Ets.Telemetry.Server.Data
 
         public static string GetDocumentsRoot(string game)
         {
-            string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string documents = GameHomeResolver.GetHomeDir(game) ??
+                               Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string folder = game == "ats" ? "American Truck Simulator" : "Euro Truck Simulator 2";
             return Path.Combine(documents, folder);
         }
