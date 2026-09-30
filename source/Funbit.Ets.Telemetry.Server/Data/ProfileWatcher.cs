@@ -105,6 +105,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
                         }
                         if (game != null)
                         {
+                            GameHomeResolver.ResolveFromRunningGame(game);
                             _steamRoots = GameProfileScanner.GetSteamProfileRoots(game).ToList();
                             Log.InfoFormat("[{0}] Game detected (exe v{1}); documents root: {2}", game,
                                 Ets2ProcessHelper.LastRunningGameProductVersion ?? "unknown",
