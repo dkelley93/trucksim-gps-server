@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Funbit.Ets.Telemetry.Server.Helpers;
 using SCSSdkClient;
 using SCSSdkClient.Object;
@@ -12,6 +13,9 @@ namespace Funbit.Ets.Telemetry.Server.Data
 
         readonly SharedMemory _sharedMemory = new SharedMemory();
         readonly object _lock = new object();
+        bool _lastTruckDelivered;
+        bool _lastCarDelivered;
+        bool _carDeliveredLatest;
 
         static readonly Lazy<ScsTelemetryDataReader> _instance = new Lazy<ScsTelemetryDataReader>(() => new ScsTelemetryDataReader());
         public static ScsTelemetryDataReader Instance => _instance.Value;
@@ -51,6 +55,25 @@ namespace Funbit.Ets.Telemetry.Server.Data
                 var trailers = MapTrailers(scs);
                 var job = MapJob(scs);
                 var nav = MapNavigation(scs);
+                // Gameplay event flags are XOR toggles that persist in shared memory across
+                // game sessions; until the plugin re-initializes (SdkActive) the memory is
+                // stale previous-session data, and serving it fires phantom job-delivered
+                // popups on clients. Only expose gameplay once the SDK is live.
+                var gameplay = MapGameplay(scs?.SdkActive == true ? scs : null);
+
+                // Workaround for the TruckSim GPS mobile app versions released so far (1.3.x and
+                // older): they only treat a job as valid, and route to its destination, when the
+                // telemetry reports an attached trailer. ATS Road Trip car jobs have no trailer, so a
+                // car job is reported as a regular job plus a fake attached trailer (Id "car_job") at
+                // the vehicle's position. Remove once the mobile app supports car jobs natively.
+                if (scs?.SdkActive == true && scs.CarJobValues.OnJob && !scs.SpecialEventsValues.OnJob)
+                {
+                    job = MapCarJob(scs.CarJobValues);
+                    trailers = WithCarJobTrailer(trailers, truck.Placement);
+                    gameplay.OnJob = true;
+                }
+                if (scs?.SdkActive == true)
+                    MergeCarJobDelivery(scs, gameplay);
 
                 return new TelemetryV1
                 {
@@ -60,11 +83,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
                     Trailers = trailers,
                     Job = job,
                     Navigation = nav,
-                    // Gameplay event flags are XOR toggles that persist in shared memory across
-                    // game sessions; until the plugin re-initializes (SdkActive) the memory is
-                    // stale previous-session data, and serving it fires phantom job-delivered
-                    // popups on clients. Only expose gameplay once the SDK is live.
-                    Gameplay = MapGameplay(scs?.SdkActive == true ? scs : null)
+                    Gameplay = gameplay
                 };
             }
         }
@@ -259,6 +278,72 @@ namespace Funbit.Ets.Telemetry.Server.Data
                 UnitCount = (int)(j.CargoValues?.UnitCount ?? 0u),
                 JobMarket = j.Market.ToString()
             };
+        }
+
+        // Part of the same workaround: the mobile app detects a delivery when jobDelivered flips, so it
+        // carries the truck and the car job toggles combined (XOR), and the details come from
+        // whichever of the two flipped last. Car job cancellations are not reported.
+        void MergeCarJobDelivery(SCSTelemetry scs, GameplayV1 gameplay)
+        {
+            var car = scs.CarJobValues;
+            var truckDelivered = scs.SpecialEventsValues.JobDelivered;
+            if (car.Delivered != _lastCarDelivered) _carDeliveredLatest = true;
+            if (truckDelivered != _lastTruckDelivered) _carDeliveredLatest = false;
+            _lastCarDelivered = car.Delivered;
+            _lastTruckDelivered = truckDelivered;
+
+            gameplay.JobDelivered = truckDelivered ^ car.Delivered;
+            if (!_carDeliveredLatest) return;
+            var arrival = car.DeliveredArrivalTime.Value;
+            var start = car.StartingTime.Value;
+            gameplay.JobDeliveredDetails = new JobDeliveredV1
+            {
+                Revenue = car.DeliveredRevenue,
+                EarnedXp = car.DeliveredEarnedXp,
+                CargoDamage = car.DeliveredCargoDamage,
+                DistanceKm = car.DeliveredDistanceKm,
+                DeliveryTime = start > 0 && arrival >= start ? arrival - start : 0
+            };
+        }
+
+        static JobV1 MapCarJob(SCSTelemetry.CarJob c)
+        {
+            return new JobV1
+            {
+                Income = (int)c.Income,
+                DeadlineTime = c.DeliveryTime.Date,
+                RemainingTime = c.RemainingDeliveryTime.Date,
+                PlannedDistanceKm = (int)c.PlannedDistanceKm,
+                SourceCityId = c.CitySourceId,
+                SourceCity = c.CitySource,
+                SourceCompanyId = c.CompanySourceId,
+                SourceCompany = c.CompanySource,
+                DestinationCityId = c.CityDestinationId,
+                DestinationCity = c.CityDestination,
+                DestinationCompanyId = c.CompanyDestinationId,
+                DestinationCompany = c.CompanyDestination,
+                CargoId = c.CargoId,
+                Cargo = c.Cargo,
+                UnitCount = (int)c.UnitCount,
+                JobMarket = c.Market
+            };
+        }
+
+        static List<TrailerV1> WithCarJobTrailer(List<TrailerV1> trailers, PlacementV1 placement)
+        {
+            var carJobTrailer = new TrailerV1
+            {
+                Attached = true,
+                Id = "car_job",
+                Name = "",
+                BrandId = "",
+                Brand = "",
+                LicensePlate = "",
+                LicensePlateCountryId = "",
+                LicensePlateCountry = "",
+                Placement = placement
+            };
+            return new[] { carJobTrailer }.Concat(trailers.Skip(1)).ToList();
         }
 
         static NavigationV1 MapNavigation(SCSTelemetry scs)

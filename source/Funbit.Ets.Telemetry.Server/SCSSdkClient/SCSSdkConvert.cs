@@ -15,6 +15,9 @@ namespace SCSSdkClient {
         private readonly int[] _offsetAreas =
             {0, 40, 500, 700, 1500, 1640, 2000, 2200, 2300, 4000, 4200, 4300, 4400, 6000};
 
+        private const int Zone15Offset = 22000;
+        private const int GenericAttributeSize = 136;
+
         private byte[] _data;
         private int _offset;
 
@@ -391,9 +394,79 @@ namespace SCSSdkClient {
 
             #endregion 14TH ZONE
 
+            #region 15TH ZONE
+
+            _offset = Zone15Offset;
+            var car = retData.CarJobValues;
+            car.Income = GetULong();
+            car.DeliveredRevenue = GetLong();
+            car.CancelledPenalty = GetLong();
+            car.UnitCount = GetUint();
+            var carDeliveryTime = GetUint();
+            car.PlannedDistanceKm = GetUint();
+            car.StartingTime = GetUint();
+            car.FinishedTime = GetUint();
+            car.DeliveredArrivalTime = GetUint();
+            car.DeliveredEarnedXp = GetInt();
+            car.DeliveredCargoDamage = GetFloat();
+            car.DeliveredVehicleDamage = GetFloat();
+            car.DeliveredDistanceKm = GetFloat();
+            car.OnJob = GetBool();
+            car.Finished = GetBool();
+            car.Cancelled = GetBool();
+            car.Delivered = GetBool();
+            car.CustomerPrioCargoHandling = GetBool();
+            car.CustomerPrioTime = GetBool();
+            car.CustomerPrioVehicleAppearance = GetBool();
+            GetBool();
+            car.CargoId = GetString();
+            car.Cargo = GetString();
+            car.CityDestinationId = GetString();
+            car.CityDestination = GetString();
+            car.CompanyDestinationId = GetString();
+            car.CompanyDestination = GetString();
+            car.CitySourceId = GetString();
+            car.CitySource = GetString();
+            car.CompanySourceId = GetString();
+            car.CompanySource = GetString();
+            car.Market = GetString(32);
+            car.DeliveryTime = carDeliveryTime;
+            var gameTime = retData.CommonValues.GameTime.Value;
+            car.RemainingDeliveryTime = gameTime > 0 && gameTime < 4000000000 && carDeliveryTime > 0 ? (int)(carDeliveryTime - gameTime) : 0;
+
+            var channels = retData.Sdk115ChannelValues;
+            channels.MandatoryBreak = GetInt();
+            channels.BusJobAverageSatisfaction = GetFloat();
+            channels.MandatoryBreakRegistered = GetBool();
+            channels.MandatoryBreakHasValue = GetBool();
+            channels.BusJobAverageSatisfactionRegistered = GetBool();
+            channels.BusJobAverageSatisfactionHasValue = GetBool();
+
+            retData.BusJobConfig = GetGenericBlock(32);
+            retData.OtherConfig = GetGenericBlock(8);
+            retData.OtherGameplayEvent = GetGenericBlock(12);
+
+
+            #endregion 15TH ZONE
+
             currentlyActive = false;
 
             return retData;
+        }
+
+        private SCSTelemetry.GenericBlock GetGenericBlock(int capacity) {
+            var block = new SCSTelemetry.GenericBlock { Sequence = GetUint(), Count = GetUint() };
+            var stored = GetUint();
+            block.Id = GetString();
+            var attributesStart = _offset;
+            for (var i = 0; i < stored; i++) {
+                block.Attributes.Add(new SCSTelemetry.GenericAttribute {
+                    Index = GetUint(), Type = GetUint(), Name = GetString(), Value = GetString()
+                });
+            }
+
+            _offset = attributesStart + capacity * GenericAttributeSize;
+            return block;
         }
 
         private bool GetBool() {
