@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using Funbit.Ets.Telemetry.Server.Helpers;
 
 namespace Funbit.Ets.Telemetry.Server.Services
@@ -16,6 +17,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
     public class LinkedDeviceStore
     {
         public static readonly TimeSpan ConnectedWindow = TimeSpan.FromSeconds(15);
+        public static readonly TimeSpan RemovedFor = TimeSpan.FromHours(24);
         static readonly TimeSpan SaveInterval = TimeSpan.FromMinutes(1);
         const int MaxNameLength = 64;
 
@@ -24,6 +26,8 @@ namespace Funbit.Ets.Telemetry.Server.Services
         readonly Settings _settings;
         readonly object _lock;
         DateTime _lastSave = DateTime.MinValue;
+
+        public event Action<string> Revoked;
 
         public LinkedDeviceStore(Settings settings)
         {
@@ -60,6 +64,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
             var key = Crypto.RandomBytes(32);
             lock (_lock)
             {
+                _settings.RemovedDevices.RemoveAll(r => r.DeviceId == deviceId);
                 var device = Upsert(deviceId, deviceName, method);
                 device.DeviceKey = Crypto.Base64Url(ProtectedData.Protect(key, null, DataProtectionScope.CurrentUser));
                 _settings.Save();
@@ -116,10 +121,66 @@ namespace Funbit.Ets.Telemetry.Server.Services
         {
             lock (_lock)
             {
-                if (_settings.LinkedDevices.RemoveAll(d => d.DeviceId == deviceId) == 0)
+                var device = Get(deviceId);
+                if (device == null)
+                    return;
+                _settings.LinkedDevices.Remove(device);
+                if (device.DeviceKey != null)
+                {
+                    _settings.RemovedDevices.RemoveAll(r => r.DeviceId == deviceId);
+                    _settings.RemovedDevices.Add(new RemovedDevice { DeviceId = deviceId, Until = DateTime.UtcNow + RemovedFor });
+                }
+                _settings.Save();
+            }
+            Revoked?.Invoke(deviceId);
+        }
+
+        public bool IsRemoved(string deviceId)
+        {
+            lock (_lock)
+            {
+                var now = DateTime.UtcNow;
+                if (_settings.RemovedDevices.RemoveAll(r => r.Until <= now) > 0)
+                    _settings.Save();
+                return _settings.RemovedDevices.Any(r => r.DeviceId == deviceId);
+            }
+        }
+
+        public void ClearRemoved(string deviceId)
+        {
+            lock (_lock)
+            {
+                if (_settings.RemovedDevices.RemoveAll(r => r.DeviceId == deviceId) == 0)
                     return;
                 _settings.Save();
             }
+        }
+
+        public bool Unlink(string deviceId, string proof, string nonce)
+        {
+            byte[] nonceBytes, proofBytes;
+            try
+            {
+                nonceBytes = Crypto.FromBase64Url(nonce);
+                proofBytes = Crypto.FromBase64Url(proof);
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+            lock (_lock)
+            {
+                var key = GetKey(deviceId);
+                if (key == null)
+                    return false;
+                var expected = Crypto.HmacSha256(key, Crypto.Concat(Encoding.UTF8.GetBytes(deviceId), nonceBytes));
+                if (!Crypto.ConstantTimeEquals(expected, proofBytes))
+                    return false;
+                _settings.LinkedDevices.RemoveAll(d => d.DeviceId == deviceId);
+                _settings.Save();
+            }
+            Revoked?.Invoke(deviceId);
+            return true;
         }
 
         public void Flush()

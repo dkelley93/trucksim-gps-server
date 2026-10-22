@@ -47,6 +47,20 @@ namespace Funbit.Ets.Telemetry.Server.Services
             _candidates = candidates;
             _loopbackPort = loopbackPort;
             _relayUrl = settings.PreferredRelayUrl ?? "";
+            devices.Revoked += DropTunnels;
+        }
+
+        // A moment later, so an unlink request that arrived through the tunnel still gets its reply.
+        void DropTunnels(string deviceId)
+        {
+            Task.Delay(TimeSpan.FromSeconds(1)).ContinueWith(_ =>
+            {
+                RelayTunnelClient[] open;
+                lock (_tunnels)
+                    open = _tunnels.Where(t => t.DeviceId == deviceId).ToArray();
+                foreach (var tunnel in open)
+                    tunnel.Dispose();
+            });
         }
 
         public bool IsConnected => _hub?.State == HubConnectionState.Connected;
@@ -299,6 +313,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
 
         public void Dispose()
         {
+            _devices.Revoked -= DropTunnels;
             Stop();
             RelayTunnelClient[] tunnels;
             lock (_tunnels)

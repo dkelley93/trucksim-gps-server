@@ -97,6 +97,16 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
             return output;
         }
 
+        public static bool ConstantTimeEquals(byte[] a, byte[] b)
+        {
+            if (a.Length != b.Length)
+                return false;
+            int diff = 0;
+            for (int i = 0; i < a.Length; i++)
+                diff |= a[i] ^ b[i];
+            return diff == 0;
+        }
+
         public static byte[] Concat(byte[] a, byte[] b)
         {
             var result = new byte[a.Length + b.Length];

@@ -215,7 +215,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
                     return false;
                 }
                 var expected = Crypto.HmacSha256(session.Secret, Crypto.Concat(Encoding.UTF8.GetBytes(deviceId), nonceBytes));
-                if (!ConstantTimeEquals(expected, proofBytes))
+                if (!Crypto.ConstantTimeEquals(expected, proofBytes))
                     return false;
                 session.Used = true;
                 Current = null;
@@ -257,16 +257,6 @@ namespace Funbit.Ets.Telemetry.Server.Services
             for (int i = 0; i < CodeLength; i++)
                 chars[i] = CodeAlphabet[bytes[i] % CodeAlphabet.Length];
             return new string(chars);
-        }
-
-        static bool ConstantTimeEquals(byte[] a, byte[] b)
-        {
-            if (a.Length != b.Length)
-                return false;
-            int diff = 0;
-            for (int i = 0; i < a.Length; i++)
-                diff |= a[i] ^ b[i];
-            return diff == 0;
         }
 
         public void Dispose()

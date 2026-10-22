@@ -19,6 +19,7 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
 
         public string PcId { get; set; }
         public List<LinkedDevice> LinkedDevices { get; set; } = new List<LinkedDevice>();
+        public List<RemovedDevice> RemovedDevices { get; set; } = new List<RemovedDevice>();
         public string PreferredRelayUrl { get; set; }
         public string Language { get; set; }
         public string PresenceMode { get; set; } = "gameOnly";
@@ -99,5 +100,11 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         public DateTime AddedAt { get; set; }
         public DateTime LastSeenAt { get; set; }
         public string LastMethod { get; set; }
+    }
+
+    public class RemovedDevice
+    {
+        public string DeviceId { get; set; }
+        public DateTime Until { get; set; }
     }
 }

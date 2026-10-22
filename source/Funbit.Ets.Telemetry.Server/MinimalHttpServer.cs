@@ -81,6 +81,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Info("  - GET  /api/pair/hello        (PC identity for pairing)");
                     Log.Info("  - POST /api/pair/complete     (QR/code pairing completion)");
                     Log.Info("  - POST /api/pair/complete-lan (Manual-IP pairing completion)");
+                    Log.Info("  - POST /api/pair/unlink       (Device leaves the linked list)");
                 }
                 catch (Exception ex)
                 {
@@ -194,7 +195,6 @@ namespace Funbit.Ets.Telemetry.Server
                             try
                             {
                                 response = RouteRequest(request);
-                                TrackDevice(request, response);
                             }
                             catch (Exception ex)
                             {
@@ -361,22 +361,26 @@ namespace Funbit.Ets.Telemetry.Server
             if (string.IsNullOrEmpty(path))
                 path = "/";
 
-            // Route to appropriate handler
+            string deviceId = HeaderValue(request.Headers, DeviceHeader);
+            if (!Crypto.IsHexId(deviceId, 32))
+                deviceId = null;
+            if (deviceId != null && HeaderValue(request.Headers, PairHeader) == PairNew)
+                _devices.ClearRemoved(deviceId);
+            bool removed = deviceId != null && _devices.IsRemoved(deviceId);
+            if (removed && !BypassesRemoval(path))
+                return JsonResponse(new { error = "device_removed" }, 403, "Forbidden");
+
+            HttpResponse response;
             if (path == "/")
-            {
-                return HandleStatusPage(request);
-            }
+                response = HandleStatusPage(request);
             else if (path == "/api/ets2/telemetry")
-            {
-                return HandleTelemetryRequest(request);
-            }
+                response = HandleTelemetryRequest(request);
             else if (path == "/api/game/state" || path == "/api/game/profiles" || path == "/api/game/profile-mods")
-            {
-                return HandleGameProfileRequest(request, path, query);
-            }
-            else if (path == "/api/pair/hello") return HandlePairHello(request);
-            else if (path == "/api/pair/complete") return HandlePairComplete(request);
-            else if (path == "/api/pair/complete-lan") return HandlePairCompleteLan(request);
+                response = HandleGameProfileRequest(request, path, query);
+            else if (path == "/api/pair/hello") response = HandlePairHello(request);
+            else if (path == "/api/pair/complete") response = HandlePairComplete(request);
+            else if (path == "/api/pair/complete-lan") response = HandlePairCompleteLan(request);
+            else if (path == "/api/pair/unlink") response = HandlePairUnlink(request);
             else
             {
                 return new HttpResponse
@@ -387,6 +391,20 @@ namespace Funbit.Ets.Telemetry.Server
                     Body = "404 Not Found"
                 };
             }
+
+            if (deviceId != null)
+            {
+                if (removed && _devices.IsRemoved(deviceId))
+                    response.ExtraHeaders[PairHeader] = PairRemoved;
+                else if (!removed && path != "/api/pair/unlink")
+                    TrackDevice(request, deviceId, response);
+            }
+            return response;
+        }
+
+        static bool BypassesRemoval(string path)
+        {
+            return path == "/api/pair/hello" || path == "/api/pair/complete" || path == "/api/pair/unlink";
         }
 
         private HttpResponse HandleStatusPage(HttpRequest request)
@@ -539,13 +557,13 @@ namespace Funbit.Ets.Telemetry.Server
 
         const string DeviceHeader = "X-TSGPS-Device";
         const string DeviceNameHeader = "X-TSGPS-Device-Name";
-        const string PairOfferHeader = "X-TSGPS-Pair";
+        const string PairHeader = "X-TSGPS-Pair";
+        const string PairOffer = "offer";
+        const string PairNew = "new";
+        const string PairRemoved = "removed";
 
-        void TrackDevice(HttpRequest request, HttpResponse response)
+        void TrackDevice(HttpRequest request, string deviceId, HttpResponse response)
         {
-            string deviceId = HeaderValue(request.Headers, DeviceHeader);
-            if (!Crypto.IsHexId(deviceId, 32))
-                return;
             string deviceName = HeaderValue(request.Headers, DeviceNameHeader);
             bool viaRelay = RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint);
             var known = _devices.Get(deviceId);
@@ -553,7 +571,7 @@ namespace Funbit.Ets.Telemetry.Server
             string method = viaRelay ? ConnectionMethod.Relay : linked ? ConnectionMethod.Direct : ConnectionMethod.Manual;
             _devices.Touch(deviceId, deviceName, method);
             if (!linked && !viaRelay)
-                response.ExtraHeaders[PairOfferHeader] = "offer";
+                response.ExtraHeaders[PairHeader] = PairOffer;
         }
 
         static string HeaderValue(string[] headers, string name)
@@ -611,6 +629,20 @@ namespace Funbit.Ets.Telemetry.Server
             var key = _devices.Link(req.DeviceId, req.DeviceName, ConnectionMethod.Direct);
             Log.InfoFormat("Device {0} linked (manual IP)", req.DeviceId);
             return JsonResponse(PcIdentity(key));
+        }
+
+        private HttpResponse HandlePairUnlink(HttpRequest request)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+
+            var req = TryDeserializeBody<PairCompleteRequest>(request);
+            if (req == null || !Crypto.IsHexId(req.DeviceId, 32) || string.IsNullOrEmpty(req.Proof) || string.IsNullOrEmpty(req.Nonce))
+                return JsonResponse(new { error = "invalid_request" }, 400, "Bad Request");
+
+            if (!_devices.Unlink(req.DeviceId, req.Proof, req.Nonce))
+                return JsonResponse(new { error = "not_linked" }, 404, "Not Found");
+            Log.InfoFormat("Device {0} unlinked itself", req.DeviceId);
+            return JsonResponse(new { });
         }
 
         static T TryDeserializeBody<T>(HttpRequest request) where T : class

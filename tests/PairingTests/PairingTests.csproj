@@ -8,11 +8,12 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <ServerBinDir Condition="'$(ServerBinDir)' == ''">..\..\source\Funbit.Ets.Telemetry.Server\bin\Release\</ServerBinDir>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="TruckSimGPS_Server">
-      <HintPath>..\..\source\Funbit.Ets.Telemetry.Server\bin\Release\TruckSimGPS_Server.exe</HintPath>
+      <HintPath>$(ServerBinDir)TruckSimGPS_Server.exe</HintPath>
     </Reference>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="log4net" Version="3.3.2" />

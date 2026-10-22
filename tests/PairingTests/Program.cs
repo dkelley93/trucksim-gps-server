@@ -269,9 +269,97 @@ namespace PairingTests
 
                     devices.Remove(manualId);
                     Check(devices.Get(manualId) == null && Settings.Load(settings.FilePath).LinkedDevices.Count == 1, "remove persists");
+
+                    await RemovedDevices(http, devices, pairing, settings, deviceId, deviceKey);
                 }
             }
             Directory.Delete(dir, true);
+        }
+
+        static async Task RemovedDevices(HttpClient http, LinkedDeviceStore devices, PairingSessionService pairing, Settings settings, string deviceId, byte[] deviceKey)
+        {
+            var revoked = new List<string>();
+            devices.Revoked += id => revoked.Add(id);
+            devices.Remove(deviceId);
+            var stored = Settings.Load(settings.FilePath);
+            var tombstone = stored.RemovedDevices.FirstOrDefault(r => r.DeviceId == deviceId);
+            Check(devices.Get(deviceId) == null && devices.IsRemoved(deviceId) && tombstone != null
+                  && tombstone.Until > DateTime.UtcNow + TimeSpan.FromHours(23), "removing a linked device writes a 24 h tombstone");
+            Check(revoked.SequenceEqual(new[] { deviceId }), "remove raises Revoked for the device");
+            Check(new LinkedDeviceStore(stored).IsRemoved(deviceId), "tombstone survives a restart");
+
+            var refused = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+            Check(refused.StatusCode == HttpStatusCode.Forbidden && (string)JObject.Parse(await refused.Content.ReadAsStringAsync())["error"] == "device_removed", "removed device: telemetry -> 403 device_removed");
+            var refusedProfile = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/game/state?game=ets2", deviceId));
+            Check(refusedProfile.StatusCode == HttpStatusCode.Forbidden && (string)JObject.Parse(await refusedProfile.Content.ReadAsStringAsync())["error"] == "device_removed", "removed device: the gate sits ahead of every route");
+            Check(devices.Get(deviceId) == null, "removed device is not registered again");
+
+            var hello = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/pair/hello", deviceId));
+            Check(hello.StatusCode == HttpStatusCode.OK && hello.Headers.GetValues("X-TSGPS-Pair").First() == "removed", "removed device: hello answers with X-TSGPS-Pair: removed");
+
+            var nonceA = Crypto.RandomBytes(16);
+            string env = Crypto.SealEnvelope(deviceKey, Newtonsoft.Json.JsonConvert.SerializeObject(new { deviceName = "Pixel 8", nonceA = Crypto.Base64Url(nonceA), ts = 1789000000 }));
+            Check(!HandshakeResponder.Answer(devices.GetKey(deviceId), new List<string>(), "", Crypto.Base64Url(nonceA), env).Ok, "removed device: handshake under its old key is rejected");
+
+            var unlink = await http.PostAsync("/api/pair/unlink", Json(new { deviceId, nonce = "AA", proof = "AA" }));
+            Check(unlink.StatusCode == HttpStatusCode.NotFound, "removed device: unlink -> 404 not_linked");
+            var garbage = await http.PostAsync("/api/pair/unlink", Json(new { deviceId, nonce = "!!", proof = "!!" }));
+            Check(garbage.StatusCode == HttpStatusCode.NotFound, "unlink with unparseable base64 -> 404, not 500");
+
+            var fresh = WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId);
+            fresh.Headers.Add("X-TSGPS-Pair", "new");
+            var accepted = await http.SendAsync(fresh);
+            Check(accepted.StatusCode == HttpStatusCode.OK && accepted.Headers.GetValues("X-TSGPS-Pair").First() == "offer" && !devices.IsRemoved(deviceId)
+                  && devices.Get(deviceId)?.LastMethod == ConnectionMethod.Manual, "X-TSGPS-Pair: new clears the tombstone, registers manual, offers");
+            var again = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+            Check(again.StatusCode == HttpStatusCode.OK, "after the new marker plain requests pass again");
+
+            devices.Link(deviceId, "Pixel 8", ConnectionMethod.Direct);
+            devices.Remove(deviceId);
+            Check(devices.IsRemoved(deviceId), "linked again and removed again: tombstone back");
+            await pairing.GenerateAsync();
+            var session = pairing.Current;
+            var nonce = Crypto.RandomBytes(16);
+            var proof = Crypto.HmacSha256(session.Secret, Crypto.Concat(Encoding.UTF8.GetBytes(deviceId), nonce));
+            var complete = await http.SendAsync(WithDevice(HttpMethod.Post, "/api/pair/complete", deviceId, Json(new { deviceId, deviceName = "Pixel 8", proof = Crypto.Base64Url(proof), nonce = Crypto.Base64Url(nonce) })));
+            Check(complete.StatusCode == HttpStatusCode.OK && !devices.IsRemoved(deviceId) && devices.GetKey(deviceId) != null
+                  && !complete.Headers.Contains("X-TSGPS-Pair"), "pairing completion bypasses and clears the tombstone, and its reply carries no removed header");
+            var linkedAgain = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+            Check(linkedAgain.StatusCode == HttpStatusCode.OK && !linkedAgain.Headers.Contains("X-TSGPS-Pair"), "re-paired device polls without an offer");
+
+            var key = devices.GetKey(deviceId);
+            var unlinkNonce = Crypto.RandomBytes(16);
+            var badProof = await http.SendAsync(WithDevice(HttpMethod.Post, "/api/pair/unlink", deviceId, Json(new { deviceId, nonce = Crypto.Base64Url(unlinkNonce), proof = Crypto.Base64Url(Crypto.RandomBytes(32)) })));
+            Check(badProof.StatusCode == HttpStatusCode.NotFound && devices.Get(deviceId) != null, "unlink with a wrong proof changes nothing");
+            int revokedBefore = revoked.Count;
+            var unlinkProof = Crypto.HmacSha256(key, Crypto.Concat(Encoding.UTF8.GetBytes(deviceId), unlinkNonce));
+            var unlinked = await http.SendAsync(WithDevice(HttpMethod.Post, "/api/pair/unlink", deviceId, Json(new { deviceId, nonce = Crypto.Base64Url(unlinkNonce), proof = Crypto.Base64Url(unlinkProof) })));
+            Check(unlinked.StatusCode == HttpStatusCode.OK && devices.Get(deviceId) == null && !devices.IsRemoved(deviceId), "unlink with the device proof deletes the row without a tombstone, and its own device headers do not re-register it");
+            Check(revoked.Count == revokedBefore + 1 && revoked.Last() == deviceId, "unlink raises Revoked for the device");
+            var offeredAgain = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+            Check(offeredAgain.StatusCode == HttpStatusCode.OK && offeredAgain.Headers.Contains("X-TSGPS-Pair"), "unlinked device is offered a pairing again");
+
+            string keyless = Crypto.RandomHexId();
+            await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", keyless));
+            devices.Remove(keyless);
+            var keylessAgain = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", keyless));
+            Check(!devices.IsRemoved(keyless) && keylessAgain.StatusCode == HttpStatusCode.OK && keylessAgain.Headers.Contains("X-TSGPS-Pair"), "removing a keyless manual row just deletes it");
+
+            devices.Link(deviceId, "Pixel 8", ConnectionMethod.Direct);
+            devices.Remove(deviceId);
+            lock (settings.Sync)
+                settings.RemovedDevices.First(r => r.DeviceId == deviceId).Until = DateTime.UtcNow - TimeSpan.FromSeconds(1);
+            Check(!devices.IsRemoved(deviceId) && Settings.Load(settings.FilePath).RemovedDevices.All(r => r.DeviceId != deviceId), "expired tombstone is ignored and pruned");
+            var expired = await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+            Check(expired.StatusCode == HttpStatusCode.OK, "device with an expired tombstone is served again");
+        }
+
+        static HttpRequestMessage WithDevice(HttpMethod method, string path, string deviceId, HttpContent content = null)
+        {
+            var request = new HttpRequestMessage(method, path) { Content = content };
+            request.Headers.Add("X-TSGPS-Device", deviceId);
+            request.Headers.Add("X-TSGPS-Device-Name", "Pixel 8");
+            return request;
         }
 
         static StringContent Json(object body)
