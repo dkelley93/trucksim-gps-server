@@ -106,7 +106,7 @@ jobs:
       - name: Verify installer is signed
         shell: pwsh
         run: |
-          $files = @(Get-Item "installer/Output/TruckSimGPS_Server_Setup_*.exe")
+          $files = @(Get-Item "installer/Output/TruckSimGPS_PC_Telemetry_Setup_*.exe")
           if ($files.Count -ne 1) { Write-Error "Expected 1 installer, found $($files.Count)"; exit 1 }
           $sig = Get-AuthenticodeSignature $files[0].FullName
           if ($sig.Status -ne 'Valid') {
@@ -118,11 +118,11 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TruckSimGPS_Server_Setup
-          path: installer/Output/TruckSimGPS_Server_Setup_*.exe
+          name: TruckSimGPS_PC_Telemetry_Setup
+          path: installer/Output/TruckSimGPS_PC_Telemetry_Setup_*.exe
 
       - name: Attach installer to release
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'release'
         with:
-          files: installer/Output/TruckSimGPS_Server_Setup_*.exe
+          files: installer/Output/TruckSimGPS_PC_Telemetry_Setup_*.exe

@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("TruckSim GPS Telemetry Server")]
-[assembly: AssemblyDescription("TruckSim GPS Telemetry Server")]
+[assembly: AssemblyTitle("TruckSim GPS PC Telemetry")]
+[assembly: AssemblyDescription("TruckSim GPS PC Telemetry")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("TruckSim GPS")]
+[assembly: AssemblyProduct("TruckSim GPS PC Telemetry")]
 [assembly: AssemblyCopyright("Copyright © Funbit 2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

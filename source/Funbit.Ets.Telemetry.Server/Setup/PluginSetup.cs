@@ -66,8 +66,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             var localX86Md5 = ComputeMd5(LocalX86PluginPath);
             if (localX64Md5 == null || localX86Md5 == null)
             {
-                Log.Error("Shipped plugin DLLs are missing from the server install directory. " +
-                    "The TruckSim GPS Telemetry Server installation may be corrupted or the " +
+                Log.Error("Shipped plugin DLLs are missing from the install directory. " +
+                    "The TruckSim GPS PC Telemetry installation may be corrupted or the " +
                     "files may have been quarantined by security software.");
                 return PluginState.LocalDllMissing;
             }

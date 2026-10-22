@@ -1,4 +1,4 @@
-# TruckSim GPS Telemetry Server
+# TruckSim GPS PC Telemetry
 
 The open-source companion telemetry server for the [TruckSim GPS](https://trucksimgps.com/) mobile app. It runs in the background while you play **Euro Truck Simulator 2** or **American Truck Simulator**, reading live game data and making it available to the mobile app on your local network.
 
@@ -10,14 +10,14 @@ The telemetry plugin that reads game data is also open source under the MIT lice
 
 ## How to Use
 
-1. **Download** the latest `TruckSimGPS_Server_Setup_*.exe` from [Releases](https://github.com/TruckSim-GPS/trucksim-gps-server/releases)
+1. **Download** the latest `TruckSimGPS_PC_Telemetry_Setup_*.exe` from [Releases](https://github.com/TruckSim-GPS/trucksim-gps-server/releases)
 2. **Run the installer**, which will:
    - Install the VC++ Redistributable if needed
    - Add a firewall rule to allow local network communication
    - Optionally create a desktop shortcut and enable start with Windows
-3. **Launch** TruckSim GPS Telemetry Server
+3. **Launch** TruckSim GPS PC Telemetry
 4. **First-time setup:** The program will auto-detect your game installations and copy the required telemetry plugins
-5. **Keep the server running** while playing ETS2/ATS
+5. **Keep PC Telemetry running** while playing ETS2/ATS
 
 The app checks for updates automatically on launch. You can also check manually via **Help > Check for Updates**.
 

@@ -312,28 +312,28 @@
     "context": "Amber server status pill: the server runs but no game (ETS2/ATS) process is running."
   },
   "setup.done_installed": {
-    "text": "The server has been installed.\nPress OK to start the server.",
-    "context": "Dialog after the setup steps all succeeded."
+    "text": "PC Telemetry has been installed.\nPress OK to start it.",
+    "context": "Dialog after the setup steps all succeeded. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.done_installed_errors": {
-    "text": "The server has been installed with errors.\nPress OK to start the server.",
-    "context": "Dialog after setup when at least one step failed (the error was already shown)."
+    "text": "PC Telemetry has been installed with errors.\nPress OK to start it.",
+    "context": "Dialog after setup when at least one step failed (the error was already shown). 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.done_title": {
     "text": "Done",
     "context": "Title of the dialogs shown when setup or uninstall finished."
   },
   "setup.done_uninstalled": {
-    "text": "The server has been uninstalled.\nPress OK to exit.",
-    "context": "Dialog after a successful uninstall."
+    "text": "PC Telemetry has been uninstalled.\nPress OK to exit.",
+    "context": "Dialog after a successful uninstall. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.done_uninstalled_errors": {
-    "text": "The server has been uninstalled with errors.\nPress OK to exit.",
-    "context": "Dialog after an uninstall where at least one step failed."
+    "text": "PC Telemetry has been uninstalled with errors.\nPress OK to exit.",
+    "context": "Dialog after an uninstall where at least one step failed. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.elevation_required": {
-    "text": "Administrator rights are needed to configure the firewall and the URL ACL.\nPlease run the server as Administrator.",
-    "context": "Error dialog when the setup wizard could not restart itself with administrator rights."
+    "text": "Administrator rights are needed to configure the firewall and the URL ACL.\nPlease run PC Telemetry as Administrator.",
+    "context": "Error dialog when the setup wizard could not restart itself with administrator rights. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.elevation_title": {
     "text": "Administrator rights required",
@@ -368,8 +368,8 @@
     "context": "Title of the error dialog shown when the network interfaces could not be listed at startup."
   },
   "setup.nothing_to_uninstall": {
-    "text": "The server is not installed, nothing to uninstall.",
-    "context": "Dialog when the uninstaller runs but no setup step is installed."
+    "text": "PC Telemetry is not installed, nothing to uninstall.",
+    "context": "Dialog when the uninstaller runs but no setup step is installed. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
   "setup.process_error_title": {
     "text": "Process error",
@@ -408,8 +408,8 @@
     "context": "Setup step: the Microsoft runtime package; product name, keep as-is."
   },
   "setup.title": {
-    "text": "TruckSim GPS Telemetry Server Setup",
-    "context": "Title of the setup wizard window shown on first run and from Server > Re-run Setup; the version number is appended. 'TruckSim GPS Telemetry Server' is the full product name of this program."
+    "text": "TruckSim GPS PC Telemetry Setup",
+    "context": "Title of the setup wizard window shown on first run and from Server > Re-run Setup; the version number is appended. 'TruckSim GPS PC Telemetry' is the full product name of this program; write it exactly as in tray.title."
   },
   "setup.uninstall": {
     "text": "Uninstall",

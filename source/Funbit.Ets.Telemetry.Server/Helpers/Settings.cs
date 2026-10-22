@@ -31,6 +31,7 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
 
         #endregion
 
+        // Folder name from before the PC Telemetry rename; renaming it would lose every PC's settings and linked devices.
         const string ApplicationName = "TruckSim GPS Telemetry Server";
         const string SettingsName = "Settings.json";
 

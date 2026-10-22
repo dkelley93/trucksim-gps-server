@@ -43,7 +43,7 @@ namespace Funbit.Ets.Telemetry.Server.Controllers
 <html>
 <head>
     <meta charset=""utf-8"">
-    <title>TruckSim GPS Telemetry Server</title>
+    <title>TruckSim GPS PC Telemetry</title>
     <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
     <style>
         body {
@@ -115,17 +115,17 @@ namespace Funbit.Ets.Telemetry.Server.Controllers
 <body>
     <div class=""container"">
         <div class=""status-icon"">✅</div>
-        <h1>TruckSim GPS Telemetry Server</h1>
+        <h1>TruckSim GPS PC Telemetry</h1>
         <div class=""status-text"">Connection Successful!</div>
         <div class=""info"">
-            <p>The telemetry server is running and accessible from this device.
+            <p>PC Telemetry is running and accessible from this device.
             You can now use this IP address in your TruckSim GPS mobile application to connect.</p>
 
             <p>To use this connection in the app:</p>
             <ol style=""text-align: left; display: inline-block;"">
                 <li>Open the TruckSim GPS app on your mobile device</li>
                 <li>Go to connection settings</li>
-                <li>Enter this server's IP address</li>
+                <li>Enter this PC's IP address</li>
                 <li>Start Euro Truck Simulator 2 or American Truck Simulator</li>
             </ol>
         </div>
