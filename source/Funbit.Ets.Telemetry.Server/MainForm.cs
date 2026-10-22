@@ -35,7 +35,10 @@ namespace Funbit.Ets.Telemetry.Server
         static extern bool SetForegroundWindow(IntPtr hWnd);
 
         const int SW_SHOWNORMAL = 1;
-        const int LeftColumnWidth = 556;
+        const int LinkPanelWidth = 284;
+        const int MinClientWidth = 880;
+        const int MinClientHeight = 632;
+        const int DevicesCardHeight = 176;
         const int Gap = 12;
         const int Edge = 14;
         const string LoopbackInterfaceId = "loopback";
@@ -53,6 +56,7 @@ namespace Funbit.Ets.Telemetry.Server
         DateTime _lastUpdateCheckUtc;
         static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
         bool _active;
+        FormWindowState _restoreState = FormWindowState.Normal;
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         readonly HttpClient _broadcastHttpClient = new HttpClient();
@@ -212,34 +216,34 @@ namespace Funbit.Ets.Telemetry.Server
             _tooltip.LinkClicked += ProcessHelper.OpenUrl;
             Controls.Add(_tooltip);
 
-            _serverCard = new Card { Width = LeftColumnWidth, Height = 46 };
+            _serverCard = new Card { Height = 46 };
             _serverTitle = new Label { AutoSize = true, Font = DarkTheme.Title, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(16, 12) };
-            _serverPill = new Pill();
-            _retry = new DarkButton { Primary = false, Font = DarkTheme.Body, Radius = 6, AutoWidth = true, Height = 22, Visible = false };
+            _serverPill = new Pill { Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            _retry = new DarkButton { Primary = false, Font = DarkTheme.Body, Radius = 6, AutoWidth = true, Height = 22, Visible = false, Anchor = AnchorStyles.Top | AnchorStyles.Right };
             _retry.Click += (s, e) => StartServer();
             _serverCard.Controls.AddRange(new Control[] { _serverTitle, _serverPill, _retry });
             Controls.Add(_serverCard);
 
-            _devicesCard = new LinkedDevicesCard(_tooltip) { Width = LeftColumnWidth, Height = 176 };
+            _devicesCard = new LinkedDevicesCard(_tooltip);
             _devicesCard.RemoveRequested += id => { _devices.Remove(id); RefreshDevices(); };
             Controls.Add(_devicesCard);
 
-            _pluginCard = new Card { Width = LeftColumnWidth, Height = 100 };
+            _pluginCard = new Card { Height = 100 };
             _pluginTitle = new Label { AutoSize = true, Font = DarkTheme.Title, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(16, 14) };
             _pluginCard.Controls.Add(_pluginTitle);
             _ets2Row = BuildPluginRow("ETS2", 44);
             _atsRow = BuildPluginRow("ATS", 70);
             Controls.Add(_pluginCard);
 
-            _manualCard = new Card { Width = LeftColumnWidth, Height = 48, BorderColor = DarkTheme.CardBorder };
+            _manualCard = new Card { Height = 48, BorderColor = DarkTheme.CardBorder };
             _manualTitle = new Label { AutoSize = true, Font = DarkTheme.Title, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(16, 13) };
-            _chevron = new ChevronButton { Location = new Point(LeftColumnWidth - 16 - 28, 10) };
+            _chevron = new ChevronButton();
             MouseEventHandler toggle = (s, e) => { if (e.Button == MouseButtons.Left) ToggleManual(); };
             _chevron.MouseDown += toggle;
             _manualCard.MouseDown += toggle;
             _manualTitle.MouseDown += toggle;
             _manualCard.Cursor = Cursors.Hand;
-            _manualContent = new Panel { Location = new Point(16, 48), Size = new Size(LeftColumnWidth - 32, 116), BackColor = DarkTheme.Card, Visible = false };
+            _manualContent = new Panel { Location = new Point(16, 48), Height = 116, BackColor = DarkTheme.Card, Visible = false };
             _interfaceLabel = MutedLabel(0, 8);
             _ipLabel = MutedLabel(0, 46);
             _reachLabel = MutedLabel(0, 74);
@@ -260,6 +264,7 @@ namespace Funbit.Ets.Telemetry.Server
             LayoutCards();
             ApplyTexts();
             L.LanguageChanged += ApplyTexts;
+            MinimumSize = SizeFromClientSize(new Size(MinClientWidth, MinClientHeight));
         }
 
         Label MutedLabel(int x, int y)
@@ -274,8 +279,8 @@ namespace Funbit.Ets.Telemetry.Server
                 Game = game,
                 Name = new Label { AutoSize = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent, Location = new Point(16, y), Text = game },
                 Status = new Label { AutoSize = true, Font = DarkTheme.Body, BackColor = Color.Transparent, Location = new Point(70, y) },
-                Path = new Label { AutoSize = false, AutoEllipsis = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent, Height = 20, Location = new Point(70, y) },
-                Install = new DarkButton { Font = DarkTheme.Body, Radius = 6, AutoWidth = true, Height = 22, Visible = false }
+                Path = new Label { AutoSize = false, AutoEllipsis = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent, Height = 20, Location = new Point(70, y), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right },
+                Install = new DarkButton { Font = DarkTheme.Body, Radius = 6, AutoWidth = true, Height = 22, Visible = false, Anchor = AnchorStyles.Top | AnchorStyles.Right }
             };
             row.Install.Click += (s, e) => CopyPluginsForGame(game);
             _pluginCard.Controls.AddRange(new Control[] { row.Name, row.Status, row.Path, row.Install });
@@ -287,11 +292,14 @@ namespace Funbit.Ets.Telemetry.Server
             int top = _menu.Height + 10;
             _brand.Location = new Point(16, top);
             top += 36 + Gap;
-            _serverCard.Location = new Point(Edge, top);
-            _devicesCard.Location = new Point(Edge, _serverCard.Bottom + Gap);
-            _pluginCard.Location = new Point(Edge, _devicesCard.Bottom + Gap);
-            _manualCard.Location = new Point(Edge, _pluginCard.Bottom + Gap);
-            int right = Edge + LeftColumnWidth + Gap;
+            int width = ClientSize.Width - Edge * 2 - Gap - LinkPanelWidth;
+            _serverCard.Bounds = new Rectangle(Edge, top, width, _serverCard.Height);
+            _devicesCard.Bounds = new Rectangle(Edge, _serverCard.Bottom + Gap, width, DevicesCardHeight + ClientSize.Height - MinClientHeight);
+            _pluginCard.Bounds = new Rectangle(Edge, _devicesCard.Bottom + Gap, width, _pluginCard.Height);
+            _manualCard.Bounds = new Rectangle(Edge, _pluginCard.Bottom + Gap, width, _manualCard.Height);
+            _manualContent.Width = width - 32;
+            _chevron.Location = new Point(width - 16 - 28, 10);
+            int right = Edge + width + Gap;
             if (_linkPanel == null)
             {
                 _linkPanel = new LinkDevicePanel(_pairing);
@@ -585,9 +593,10 @@ namespace Funbit.Ets.Telemetry.Server
 
         void RestoreWindow()
         {
+            var state = _restoreState;
             ShowWindow(Handle, SW_SHOWNORMAL);
             ShowInTaskbar = true;
-            WindowState = FormWindowState.Normal;
+            WindowState = state;
             Activate();
             SetForegroundWindow(Handle);
         }
@@ -654,6 +663,12 @@ namespace Funbit.Ets.Telemetry.Server
         {
             UpdateStandby();
             ShowInTaskbar = WindowState != FormWindowState.Minimized;
+            if (ShowInTaskbar)
+            {
+                _restoreState = WindowState;
+                _tooltip.HideFrom(null);
+                LayoutCards();
+            }
             if (!ShowInTaskbar && trayIcon.Tag == null)
             {
                 trayIcon.ShowBalloonTip(1000, L.Get("tray.title"), L.Get("tray.restore"), ToolTipIcon.Info);

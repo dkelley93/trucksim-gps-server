@@ -11,7 +11,6 @@ namespace Funbit.Ets.Telemetry.Server.Ui
     {
         const int RowHeight = 33;
         const int RowGap = 6;
-        public const int ListHeight = 118;
 
         readonly Label _title = new Label { AutoSize = true, Font = DarkTheme.Title, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(16, 14) };
         readonly Label _count = new Label { AutoSize = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent };
@@ -26,7 +25,6 @@ namespace Funbit.Ets.Telemetry.Server.Ui
         {
             _tooltip = tooltip;
             Controls.AddRange(new Control[] { _title, _count, _empty, _list });
-            _list.Height = ListHeight;
             _list.Scrolled += () => _tooltip.HideFrom(null);
             ApplyTexts();
         }
@@ -42,7 +40,9 @@ namespace Funbit.Ets.Telemetry.Server.Ui
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-            _list.Width = Width - 32;
+            _list.Size = new Size(Width - 32, Height - _list.Top - 14);
+            foreach (var row in _rows)
+                row.Width = _list.Content.Width;
             _count.Location = new Point(Width - 16 - _count.Width, 16);
         }
 
@@ -229,6 +229,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             public readonly string DeviceId;
             readonly Label _name = new Label { AutoSize = true, Font = DarkTheme.BodyBold, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(28, 0) };
             readonly Label _status = new Label { AutoSize = false, AutoEllipsis = true, Font = DarkTheme.Body, BackColor = Color.Transparent };
+            readonly Label _rate = new Label { AutoSize = false, AutoEllipsis = true, Font = DarkTheme.Body, ForeColor = DarkTheme.Amber, BackColor = Color.Transparent };
             readonly DarkButton _remove = new DarkButton { Primary = false, Font = DarkTheme.Body, Radius = 6, AutoWidth = true, Height = 22, BackColor = DarkTheme.Row };
             readonly InfoIcon _info = new InfoIcon { ForeColor = DarkTheme.Amber, Size = new Size(14, 14), BackColor = DarkTheme.Row, Visible = false };
             readonly TooltipPanel _tooltip;
@@ -246,13 +247,24 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                 _remove.Click += (s, e) => remove();
                 _info.MouseEnter += (s, e) => _tooltip.Show(_info, L.Get("devices.relay_tooltip"), L.Get("menu.connection_help"), CloudConfig.ConnectHelpUrl);
                 _info.MouseLeave += (s, e) => _tooltip.HideFrom(_info);
-                Controls.AddRange(new Control[] { _name, _status, _remove, _info });
+                Controls.AddRange(new Control[] { _name, _status, _rate, _remove, _info });
                 ApplyTexts();
             }
 
             public void ApplyTexts()
             {
                 _remove.Text = L.Get("devices.remove");
+                LayoutRow();
+            }
+
+            protected override void OnResize(EventArgs e)
+            {
+                base.OnResize(e);
+                LayoutRow();
+            }
+
+            void LayoutRow()
+            {
                 _remove.Location = new Point(Width - 10 - _remove.Width, (RowHeight - 22) / 2);
                 if (_device != null)
                     Refresh(_device, _meter, true);
@@ -272,10 +284,9 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                 string status = connected
                     ? L.Get(relay ? "devices.connected_relay" : "devices.connected_direct")
                     : L.Get("devices.last_seen", RelativeTime(device.LastSeenAt));
-                if (relay && meter != null)
-                    status += " · " + L.Get("devices.throughput", Rate(meter.UpBytesPerSecond), Rate(meter.DownBytesPerSecond));
+                string rate = relay && meter != null ? L.Get("devices.throughput", Rate(meter.UpBytesPerSecond), Rate(meter.DownBytesPerSecond)) : "";
                 string name = device.Name ?? L.Get("devices.unnamed");
-                if (!force && connected == _connected && relay == _relay && status == _status.Text && name == _name.Text)
+                if (!force && connected == _connected && relay == _relay && status == _status.Text && rate == _rate.Text && name == _name.Text)
                     return;
                 bool dotChanged = connected != _connected || relay != _relay;
                 _connected = connected;
@@ -286,10 +297,12 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                 _status.ForeColor = connected ? (relay ? DarkTheme.Amber : DarkTheme.Green) : DarkTheme.TextMuted;
                 _status.Height = _status.PreferredHeight;
                 _status.Location = new Point(_name.Right + 10, (RowHeight - _status.Height) / 2);
-                int maxRight = _remove.Left - 10 - (relay ? 20 : 0);
-                _status.Width = Math.Max(20, Math.Min(_status.PreferredWidth, maxRight - _status.Left));
+                int maxRight = _remove.Left - 10;
+                _status.Width = Math.Max(20, Math.Min(_status.PreferredWidth, maxRight - (relay ? 20 : 0) - _status.Left));
                 _info.Location = new Point(_status.Right + 6, (RowHeight - 14) / 2);
                 _info.Visible = relay;
+                _rate.Text = rate;
+                _rate.Bounds = new Rectangle(_info.Right + 4, _status.Top, Math.Max(0, maxRight - _info.Right - 4), _status.Height);
                 if (dotChanged || force)
                     Invalidate();
             }

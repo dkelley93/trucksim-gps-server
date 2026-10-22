@@ -51,6 +51,12 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             ApplyTexts();
         }
 
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            Render();
+        }
+
         async void Generate()
         {
             await _pairing.GenerateAsync();
