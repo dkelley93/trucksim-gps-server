@@ -50,8 +50,8 @@ namespace Funbit.Ets.Telemetry.Server
         readonly WaveOutVoiceAudio _voiceAudio = new WaveOutVoiceAudio();
         VoiceEndpoints _voice;
         string _serverError;
-        bool _hasCheckedForUpdates;
-        bool _startedMinimized;
+        DateTime _lastUpdateCheckUtc;
+        static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
         bool _active;
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
@@ -115,6 +115,7 @@ namespace Funbit.Ets.Telemetry.Server
             base.OnActivated(e);
             _active = true;
             UpdateStandby();
+            CheckForUpdatesIfDue();
         }
 
         protected override void OnDeactivate(EventArgs e)
@@ -533,16 +534,13 @@ namespace Funbit.Ets.Telemetry.Server
 
             if (Program.StartMinimized)
             {
-                _startedMinimized = true;
                 trayIcon.Tag = "Already shown";
                 WindowState = FormWindowState.Minimized;
                 ShowInTaskbar = false;
                 trayIcon.ShowBalloonTip(3000, L.Get("tray.title"), L.Get("tray.background"), ToolTipIcon.Info);
             }
-            else
-            {
-                CheckForUpdates();
-            }
+
+            CheckForUpdatesIfDue();
         }
 
         void MainForm_FormClosed(object sender, FormClosedEventArgs e)
@@ -591,8 +589,6 @@ namespace Funbit.Ets.Telemetry.Server
             WindowState = FormWindowState.Normal;
             Activate();
             SetForegroundWindow(Handle);
-            if (_startedMinimized && !_hasCheckedForUpdates)
-                CheckForUpdates();
         }
 
         void statusUpdateTimer_Tick(object sender, EventArgs e)
@@ -807,9 +803,15 @@ namespace Funbit.Ets.Telemetry.Server
             public bool IsUpdateAvailable;
         }
 
+        void CheckForUpdatesIfDue()
+        {
+            if (DateTime.UtcNow - _lastUpdateCheckUtc >= UpdateCheckInterval)
+                CheckForUpdates();
+        }
+
         void CheckForUpdates(bool reportErrors = false)
         {
-            _hasCheckedForUpdates = true;
+            _lastUpdateCheckUtc = DateTime.UtcNow;
 
             System.Threading.Tasks.Task.Run(() =>
             {
