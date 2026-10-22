@@ -185,6 +185,7 @@
     </Compile>
     <Compile Include="Ui\DarkTheme.cs" />
     <Compile Include="Ui\DarkControls.cs" />
+    <Compile Include="Ui\DarkDropDown.cs" />
     <Compile Include="Ui\LinkDevicePanel.cs" />
     <Compile Include="Ui\LinkedDevicesCard.cs" />
     <Compile Include="Program.cs" />

@@ -22,6 +22,7 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
 
             var foundInterfaces = interfaces.Where(
                     a => a.OperationalStatus.ToString() == "Up" &&
+                    a.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
                     a.GetIPProperties()
                      .UnicastAddresses.Any(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork))
                      .Select(i => new NetworkInterfaceInfo
@@ -31,10 +32,6 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
                          Ip = i.GetIPProperties().UnicastAddresses
                             .First(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork).Address.ToString()
                      }).ToArray();
-
-            if (!foundInterfaces.Any())
-                throw new Exception(
-                    "System does not have any registered network interfaces that are connected to a network.");
 
             return foundInterfaces;
         }
