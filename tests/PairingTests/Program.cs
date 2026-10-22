@@ -20,7 +20,7 @@ using TruckSimGps.VoiceFx;
 namespace PairingTests
 {
     // Run after a Release build: dotnet run --project tests/PairingTests -c Release
-    static class Program
+    static partial class Program
     {
         static int _failures;
 
@@ -40,6 +40,11 @@ namespace PairingTests
             Run("voice decoder", VoiceDecode);
             Run("voice fx vectors", VoiceFxVectors);
             Run("voice routes", () => VoiceRoutes().GetAwaiter().GetResult());
+            Run("gps sync policy", GpsSyncPolicyRules);
+            Run("gps sync press window", GpsSyncPressWindow);
+            Run("gps sync plugin contract", GpsSyncContract);
+            Run("save gps parser", SaveGpsParsing);
+            Run("gps sync json", GpsSyncJson);
 
             Console.WriteLine(_failures == 0 ? "ALL PASSED" : $"FAILED ({_failures})");
             return _failures == 0 ? 0 : 1;
@@ -535,6 +540,22 @@ namespace PairingTests
                     request.Headers.Add("X-TSGPS-Device-Name", "Pixel 8");
                     var tracked = await http.SendAsync(request);
                     Check(!tracked.Headers.Contains("X-TSGPS-Pair"), "linked device request carries no pair offer");
+
+                    Check(!devices.AppState().WantsGameRoute, "no device asks for the game route by default");
+                    request = WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId);
+                    request.Headers.Add("X-TSGPS-Game-Route", "1");
+                    await http.SendAsync(request);
+                    Check(devices.AppState().WantsGameRoute, "a telemetry poll with X-TSGPS-Game-Route: 1 asks for the game route");
+                    await http.SendAsync(WithDevice(HttpMethod.Get, "/api/pair/hello", deviceId));
+                    Check(devices.AppState().WantsGameRoute, "other requests leave the game-route flag alone");
+                    await http.SendAsync(WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId));
+                    Check(!devices.AppState().WantsGameRoute, "a telemetry poll without the header drops it");
+                    request = WithDevice(HttpMethod.Get, "/api/ets2/telemetry", deviceId);
+                    request.Headers.Add("X-TSGPS-Game-Route", "1");
+                    await http.SendAsync(request);
+                    lock (settings.Sync)
+                        devices.Get(deviceId).GameRouteWantedAt -= LinkedDeviceStore.ConnectedWindow;
+                    Check(!devices.AppState().WantsGameRoute, "the game-route flag expires like the connection does");
 
                     string manualId = Crypto.RandomHexId();
                     request = new HttpRequestMessage(HttpMethod.Get, "/api/ets2/telemetry");

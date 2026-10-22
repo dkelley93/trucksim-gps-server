@@ -379,7 +379,7 @@ namespace Funbit.Ets.Telemetry.Server
             HttpResponse response;
             if (path == "/")
                 response = HandleStatusPage(request);
-            else if (path == "/api/ets2/telemetry")
+            else if (path == TelemetryEndpoints.TelemetryApiUriPath)
                 response = HandleTelemetryRequest(request);
             else if (path == "/api/game/state" || path == "/api/game/profiles" || path == "/api/game/profile-mods")
                 response = HandleGameProfileRequest(request, path, query);
@@ -404,7 +404,7 @@ namespace Funbit.Ets.Telemetry.Server
                 if (removed && _devices.IsRemoved(deviceId))
                     response.ExtraHeaders[PairHeader] = PairRemoved;
                 else if (!removed && path != "/api/pair/unlink")
-                    TrackDevice(request, deviceId, response);
+                    TrackDevice(request, deviceId, path, response);
             }
             return response;
         }
@@ -568,15 +568,18 @@ namespace Funbit.Ets.Telemetry.Server
         const string PairOffer = "offer";
         const string PairNew = "new";
         const string PairRemoved = "removed";
+        const string GameRouteHeader = "X-TSGPS-Game-Route";
 
-        void TrackDevice(HttpRequest request, string deviceId, HttpResponse response)
+        void TrackDevice(HttpRequest request, string deviceId, string path, HttpResponse response)
         {
             string deviceName = HeaderValue(request.Headers, DeviceNameHeader);
             bool viaRelay = RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint);
             var known = _devices.Get(deviceId);
             bool linked = known?.DeviceKey != null;
             string method = viaRelay ? ConnectionMethod.Relay : linked ? ConnectionMethod.Direct : ConnectionMethod.Manual;
-            _devices.Touch(deviceId, deviceName, method);
+            var device = _devices.Touch(deviceId, deviceName, method);
+            if (path == TelemetryEndpoints.TelemetryApiUriPath)
+                _devices.SetWantsGameRoute(device, HeaderValue(request.Headers, GameRouteHeader) == "1");
             if (!linked && !viaRelay)
                 response.ExtraHeaders[PairHeader] = PairOffer;
         }

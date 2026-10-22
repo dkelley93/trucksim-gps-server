@@ -113,6 +113,13 @@ namespace SCSSdkClient {
             _memoryMappedView.ReadArray(0, RawData, 0, RawData.Length);
         }
 
+        public T Read<T>(long position) where T : struct {
+            _memoryMappedView.Read(position, out T value);
+            return value;
+        }
+
+        public void Write(long position, uint value) => _memoryMappedView.Write(position, value);
+
         /// <summary>
         ///     Cast a set of bytes to a managed C# object.
         /// </summary>

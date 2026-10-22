@@ -133,6 +133,9 @@
     <Compile Include="Data\TruckersMpWatcher.cs" />
     <Compile Include="Data\GameProfileScanner.cs" />
     <Compile Include="Data\GameHomeResolver.cs" />
+    <Compile Include="Data\GpsSyncPolicy.cs" />
+    <Compile Include="Data\GpsTargetWatcher.cs" />
+    <Compile Include="Data\SaveGpsParser.cs" />
     <!-- Vendored SIIDecryptSharp (see SiiDecrypt\LICENSE) -->
     <Compile Include="SiiDecrypt\BSII_Decoder.cs" />
     <Compile Include="SiiDecrypt\BSII_Serializer.cs" />

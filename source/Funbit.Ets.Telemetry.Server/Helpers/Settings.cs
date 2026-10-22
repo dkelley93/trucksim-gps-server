@@ -102,6 +102,8 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         public DateTime AddedAt { get; set; }
         public DateTime LastSeenAt { get; set; }
         public string LastMethod { get; set; }
+        [JsonIgnore]
+        public DateTime GameRouteWantedAt { get; set; }
     }
 
     public class RemovedDevice

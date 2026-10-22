@@ -189,6 +189,20 @@ namespace Funbit.Ets.Telemetry.Server.Services
                 _settings.Save();
         }
 
+        public void SetWantsGameRoute(LinkedDevice device, bool wants)
+        {
+            lock (_lock)
+                device.GameRouteWantedAt = wants ? DateTime.UtcNow : DateTime.MinValue;
+        }
+
+        public (bool Connected, bool WantsGameRoute) AppState()
+        {
+            var now = DateTime.UtcNow;
+            lock (_lock)
+                return (_settings.LinkedDevices.Any(IsConnected),
+                        _settings.LinkedDevices.Any(d => now - d.GameRouteWantedAt < ConnectedWindow));
+        }
+
         public static bool IsConnected(LinkedDevice device)
         {
             return DateTime.UtcNow - device.LastSeenAt < ConnectedWindow;

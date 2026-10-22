@@ -142,5 +142,7 @@
       "estimatedTime": "0001-01-01T03:01:40Z",
       "estimatedDistance": 132500,
       "speedLimit": 90
-   }
+   },
+   "gpsRoute": null,
+   "selectedJob": null
 }

@@ -474,6 +474,7 @@ namespace Funbit.Ets.Telemetry.Server
                 _interfaces.SelectedIndex = Math.Max(0, remembered);
 
                 _devices = new LinkedDeviceStore(_settings);
+                GpsTargetWatcher.Start(_devices);
                 _voice = new VoiceEndpoints(_devices, new VoiceCache(VoiceCache.DefaultRoot), _voiceAudio);
                 _presence = new PresenceClient(CloudConfig.ApiBaseUrl, _settings, _devices, _pairing, ConnectCandidates, CloudConfig.Port);
                 StartServer();

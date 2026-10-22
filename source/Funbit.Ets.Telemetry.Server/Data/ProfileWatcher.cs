@@ -16,6 +16,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
         public int Revision { get; set; }
         public string ActiveProfileId { get; set; }
         public string ActiveProfileType { get; set; }
+        public string ActiveSaveDir { get; set; }
     }
 
     /// <summary>
@@ -48,6 +49,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
             public int Revision;
             public string ActiveId;
             public string ActiveType;
+            public string ActiveSaveDir;
             public Dictionary<string, Profile> Profiles = new Dictionary<string, Profile>();
         }
 
@@ -72,6 +74,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
                     Revision = state.Revision,
                     ActiveProfileId = state.ActiveId,
                     ActiveProfileType = state.ActiveType,
+                    ActiveSaveDir = state.ActiveSaveDir,
                 };
             }
         }
@@ -82,7 +85,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
             {
                 if (_thread != null)
                     return;
-                Log.Info("Profile watcher started (first /api/game/state request)");
+                Log.Info("Profile watcher started");
                 _thread = new Thread(PollLoop) { IsBackground = true, Name = "ProfileWatcher" };
                 _thread.Start();
             }
@@ -191,8 +194,11 @@ namespace Funbit.Ets.Telemetry.Server.Data
                 {
                     state.ActiveId = active?.Id;
                     state.ActiveType = active?.Type;
+                    state.ActiveSaveDir = null;
                     changes.Add(string.Format("Active profile '{0}' ({1})", active?.Name, active?.Type));
                 }
+                if (active?.SiiPath != null)
+                    state.ActiveSaveDir = Path.Combine(Path.GetDirectoryName(active.SiiPath), "save");
                 state.Profiles = found;
                 if (changes.Count > 0)
                     state.Revision++;
