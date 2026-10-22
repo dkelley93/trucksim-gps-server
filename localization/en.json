@@ -419,6 +419,18 @@
     "text": "Warning",
     "context": "Generic warning dialog title."
   },
+  "test_page.body": {
+    "text": "This device can reach PC Telemetry on this PC.",
+    "context": "Line under test_page.heading on the test web page. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "test_page.heading": {
+    "text": "Connection successful",
+    "context": "Heading of the test web page this program serves at http://<this PC's IP>:31377/. A device that opens the address and sees the page can reach this PC. Short."
+  },
+  "test_page.tip": {
+    "text": "Open this same address on your phone or tablet, on the same local network as this PC. If this page appears there too, that device can see this PC.",
+    "context": "Tip at the bottom of the test web page: how to check that a mobile device on the local network (Wi-Fi) can reach this PC."
+  },
   "time.days_ago": {
     "text": "{0} days ago",
     "context": "Relative time, {0} is 2 to 13."

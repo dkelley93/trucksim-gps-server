@@ -418,7 +418,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             if (request.Method != "GET") return MethodNotAllowed();
 
-            var html = TelemetryEndpoints.GetStatusPageHtml(showBypassNotice: true);
+            var html = TelemetryEndpoints.GetStatusPageHtml();
             return new HttpResponse
             {
                 StatusCode = 200,
