@@ -89,9 +89,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 Log.Error(ex);
                 Settings.Instance.FirewallSetupHadErrors = true;
                 Settings.Instance.Save();
-                throw new Exception("Cannot configure Windows Firewall." + Environment.NewLine +
-                                    "If you are using some 3rd-party firewall please open " +
-                                    ConfigurationManager.AppSettings["Port"] + " TCP port manually!", ex);
+                throw new Exception(L.Get("setup.firewall_failed_install", ConfigurationManager.AppSettings["Port"]), ex);
             }
 
             return _status;
@@ -118,9 +116,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             {
                 Log.Error(ex);
                 _status = SetupStatus.Failed;
-                throw new Exception("Cannot configure Windows Firewall." + Environment.NewLine +
-                                    "If you are using some 3rd-party firewall please close " +
-                                    ConfigurationManager.AppSettings["Port"] + " TCP port manually!", ex);
+                throw new Exception(L.Get("setup.firewall_failed_uninstall", ConfigurationManager.AppSettings["Port"]), ex);
             }
         }
 

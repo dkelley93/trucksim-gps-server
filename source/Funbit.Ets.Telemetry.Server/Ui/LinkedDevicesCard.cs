@@ -16,7 +16,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
         readonly Label _title = new Label { AutoSize = true, Font = DarkTheme.Title, ForeColor = Color.White, BackColor = Color.Transparent, Location = new Point(16, 14) };
         readonly Label _count = new Label { AutoSize = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent };
         readonly Label _empty = new Label { AutoSize = true, Font = DarkTheme.Body, ForeColor = DarkTheme.TextMuted, BackColor = Color.Transparent, Location = new Point(16, 50) };
-        readonly Panel _list = new ListPanel { AutoScroll = true, BackColor = DarkTheme.Card, Location = new Point(16, 44), Visible = false };
+        readonly ListPanel _list = new ListPanel { BackColor = DarkTheme.Card, Location = new Point(16, 44), Visible = false };
         readonly List<DeviceRow> _rows = new List<DeviceRow>();
         readonly TooltipPanel _tooltip;
 
@@ -27,6 +27,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             _tooltip = tooltip;
             Controls.AddRange(new Control[] { _title, _count, _empty, _list });
             _list.Height = ListHeight;
+            _list.Scrolled += () => _tooltip.HideFrom(null);
             ApplyTexts();
         }
 
@@ -62,24 +63,24 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                 return;
             }
 
-            _list.SuspendLayout();
+            _list.Content.SuspendLayout();
             _tooltip.HideFrom(null);
             foreach (var row in _rows)
                 row.Dispose();
             _rows.Clear();
-            _list.Controls.Clear();
+            _list.Content.Controls.Clear();
+            _list.SetContentHeight(Math.Max(0, devices.Count * (RowHeight + RowGap) - RowGap));
             int y = 0;
-            int rowWidth = _list.Width - (devices.Count * (RowHeight + RowGap) - RowGap > ListHeight ? SystemInformation.VerticalScrollBarWidth + 4 : 0);
             foreach (var device in devices)
             {
-                var row = new DeviceRow(device.DeviceId, rowWidth, _tooltip, () => RemoveRequested?.Invoke(device.DeviceId));
+                var row = new DeviceRow(device.DeviceId, _list.Content.Width, _tooltip, () => RemoveRequested?.Invoke(device.DeviceId));
                 row.Update(device, Meter(throughput, device));
                 row.Location = new Point(0, y);
                 _rows.Add(row);
-                _list.Controls.Add(row);
+                _list.Content.Controls.Add(row);
                 y += RowHeight + RowGap;
             }
-            _list.ResumeLayout();
+            _list.Content.ResumeLayout();
         }
 
         static ThroughputMeter Meter(IReadOnlyDictionary<string, ThroughputMeter> throughput, LinkedDevice device)
@@ -107,9 +108,119 @@ namespace Funbit.Ets.Telemetry.Server.Ui
 
         sealed class ListPanel : Panel
         {
+            const int ThumbWidth = 4;
+            const int Gutter = ThumbWidth + 8;
+            const int MinThumbHeight = 20;
+
+            public readonly Panel Content = new Panel { BackColor = DarkTheme.Card };
+            int _contentHeight, _offset;
+            float _grab = -1;
+            bool _hot;
+
+            public event Action Scrolled;
+
             public ListPanel()
             {
                 DoubleBuffered = true;
+                ResizeRedraw = true;
+                Controls.Add(Content);
+            }
+
+            bool Scrolls => _contentHeight > Height;
+            int MaxOffset => Math.Max(0, _contentHeight - Height);
+
+            public void SetContentHeight(int height)
+            {
+                _contentHeight = height;
+                Content.Size = new Size(Width - (Scrolls ? Gutter : 0), height);
+                ScrollTo(_offset);
+            }
+
+            void ScrollTo(int offset)
+            {
+                offset = Math.Max(0, Math.Min(offset, MaxOffset));
+                bool moved = offset != _offset;
+                _offset = offset;
+                Content.Top = -offset;
+                Invalidate();
+                if (moved)
+                    Scrolled?.Invoke();
+            }
+
+            RectangleF Thumb()
+            {
+                float height = Math.Max(MinThumbHeight, (float)Height * Height / _contentHeight);
+                float top = MaxOffset == 0 ? 0 : (Height - height) * _offset / MaxOffset;
+                return new RectangleF(Width - ThumbWidth - 1, top, ThumbWidth, height);
+            }
+
+            protected override void OnResize(EventArgs e)
+            {
+                base.OnResize(e);
+                SetContentHeight(_contentHeight);
+            }
+
+            void SetHot(Point cursor)
+            {
+                bool hot = Scrolls && cursor.X >= Width - Gutter && cursor.X < Width && cursor.Y >= Thumb().Top && cursor.Y <= Thumb().Bottom;
+                if (hot == _hot)
+                    return;
+                _hot = hot;
+                Invalidate();
+            }
+
+            protected override void OnMouseWheel(MouseEventArgs e)
+            {
+                ScrollTo(_offset - e.Delta * (RowHeight + RowGap) / 120);
+                SetHot(e.Location);
+                base.OnMouseWheel(e);
+            }
+
+            protected override void OnMouseDown(MouseEventArgs e)
+            {
+                base.OnMouseDown(e);
+                if (e.Button != MouseButtons.Left || !Scrolls)
+                    return;
+                var thumb = Thumb();
+                if (e.Y < thumb.Top)
+                    ScrollTo(_offset - Height);
+                else if (e.Y > thumb.Bottom)
+                    ScrollTo(_offset + Height);
+                else
+                    _grab = e.Y - thumb.Top;
+            }
+
+            protected override void OnMouseMove(MouseEventArgs e)
+            {
+                base.OnMouseMove(e);
+                if (_grab >= 0 && Scrolls)
+                    ScrollTo((int)Math.Round((e.Y - _grab) / (Height - Thumb().Height) * MaxOffset));
+                SetHot(e.Location);
+            }
+
+            protected override void OnMouseCaptureChanged(EventArgs e)
+            {
+                base.OnMouseCaptureChanged(e);
+                _grab = -1;
+                SetHot(PointToClient(Cursor.Position));
+                Invalidate();
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                base.OnMouseLeave(e);
+                _hot = false;
+                Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (!Scrolls)
+                    return;
+                var thumb = Thumb();
+                thumb.Inflate(0, -1);
+                DarkTheme.FillRounded(e.Graphics, thumb, ThumbWidth / 2f, _hot || _grab >= 0 ? DarkTheme.TextMuted : DarkTheme.ControlBorder);
             }
         }
 

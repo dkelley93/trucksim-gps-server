@@ -6,10 +6,11 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Funbit.Ets.Telemetry.Server.Helpers;
+using Funbit.Ets.Telemetry.Server.Ui;
 
 namespace Funbit.Ets.Telemetry.Server
 {
-    public sealed class UpdateForm : Form
+    public sealed class UpdateForm : DarkDialog
     {
         readonly string _changelogUrl;
         string _tempHtmlPath;
@@ -35,64 +36,55 @@ namespace Funbit.Ets.Telemetry.Server
             SuspendLayout();
 
             Text = L.Get("update.title");
-            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-            ClientSize = new Size(560, 500);
+            ClientSize = new Size(560, 520);
             MinimumSize = new Size(450, 400);
-            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.Sizable;
-            MaximizeBox = false;
-            ShowInTaskbar = false;
-            Font = new Font("Segoe UI", 9.75f);
 
             var headerLabel = new Label
             {
                 Text = L.Get("update.header"),
-                Font = new Font("Segoe UI", 12f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(30, 30, 30),
-                AutoSize = false,
-                Size = new Size(520, 28),
-                Location = new Point(20, 16),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Font = DarkTheme.Brand,
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(22, 20)
             };
 
             var versionLabel = new Label
             {
-                Text = $"v{TrimVersion(installedVersion)}  \u2192  v{currentVersion}",
-                Font = new Font("Segoe UI", 10f),
-                ForeColor = Color.FromArgb(80, 80, 80),
-                AutoSize = false,
-                Size = new Size(520, 22),
-                Location = new Point(20, 46),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Text = $"v{TrimVersion(installedVersion)}  →  v{currentVersion}",
+                ForeColor = DarkTheme.TextSecondary,
+                AutoSize = true,
+                Location = new Point(24, 50)
             };
 
-            var separator = new Label
+            var notesCard = new Card
             {
-                AutoSize = false,
-                Size = new Size(520, 1),
-                Location = new Point(20, 76),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BorderStyle = BorderStyle.Fixed3D
+                Location = new Point(16, 84),
+                Size = new Size(528, 360),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
 
             var changelogLabel = new Label
             {
                 Text = L.Get("update.release_notes"),
-                Font = new Font("Segoe UI Semibold", 9.75f),
-                ForeColor = Color.FromArgb(60, 60, 60),
+                Font = DarkTheme.Title,
+                ForeColor = Color.White,
+                BackColor = DarkTheme.Card,
                 AutoSize = true,
-                Location = new Point(20, 84)
+                Location = new Point(16, 14)
             };
 
             var webBrowser = new WebBrowser
             {
-                Location = new Point(20, 108),
-                Size = new Size(520, 310),
+                Location = new Point(16, 44),
+                Size = new Size(notesCard.Width - 24, notesCard.Height - 56),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 IsWebBrowserContextMenuEnabled = false,
                 ScriptErrorsSuppressed = true,
-                WebBrowserShortcutsEnabled = false
+                WebBrowserShortcutsEnabled = false,
+                Visible = false
             };
+            webBrowser.DocumentCompleted += (s, e) => webBrowser.Visible = true;
 
             webBrowser.Navigating += (s, e) =>
             {
@@ -109,46 +101,48 @@ namespace Funbit.Ets.Telemetry.Server
             _tempHtmlPath = Path.Combine(Path.GetTempPath(), $"trucksimgps_update_{Guid.NewGuid():N}.html");
             File.WriteAllText(_tempHtmlPath, html, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
             webBrowser.Navigate(_tempHtmlPath);
+            notesCard.Controls.AddRange(new Control[] { changelogLabel, webBrowser });
 
             var bottomPanel = new Panel
             {
-                Size = new Size(560, 56),
-                Dock = DockStyle.Bottom
+                Size = new Size(560, 64),
+                Dock = DockStyle.Bottom,
+                BackColor = DarkTheme.Header
             };
 
-            var githubLink = new LinkLabel
+            var githubLink = new LinkText
             {
                 Text = L.Get("update.view_on_github"),
-                Font = new Font("Segoe UI", 9f),
-                AutoSize = true,
-                Location = new Point(20, 18)
+                Location = new Point(22, 24)
             };
             githubLink.LinkClicked += (s, e) =>
             {
                 Process.Start(new ProcessStartInfo(_changelogUrl) { UseShellExecute = true });
             };
 
-            var laterButton = new Button
+            var laterButton = new DarkButton
             {
                 Text = L.Get("update.later"),
-                Font = new Font("Segoe UI", 9.75f),
-                Size = new Size(90, 34),
-                Location = new Point(340, 12),
+                Primary = false,
+                Font = DarkTheme.Body,
+                BackColor = DarkTheme.Header,
+                Height = 34,
                 Anchor = AnchorStyles.Right,
-                FlatStyle = FlatStyle.System
+                DialogResult = DialogResult.Cancel
             };
-            laterButton.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
 
-            var updateButton = new Button
+            var updateButton = new DarkButton
             {
                 Text = L.Get("update.now"),
-                Font = new Font("Segoe UI", 9.75f, FontStyle.Bold),
-                Size = new Size(110, 34),
-                Location = new Point(436, 12),
+                BackColor = DarkTheme.Header,
+                Height = 34,
                 Anchor = AnchorStyles.Right,
-                FlatStyle = FlatStyle.System
+                DialogResult = DialogResult.OK
             };
-            updateButton.Click += (s, e) => { DialogResult = DialogResult.OK; Close(); };
+            updateButton.Width = Math.Max(120, DarkTheme.TextWidth(updateButton, updateButton.Text, updateButton.Font) + 32);
+            updateButton.Location = new Point(bottomPanel.Width - 16 - updateButton.Width, 15);
+            laterButton.Width = Math.Max(96, DarkTheme.TextWidth(laterButton, laterButton.Text, laterButton.Font) + 32);
+            laterButton.Location = new Point(updateButton.Left - 8 - laterButton.Width, 15);
 
             AcceptButton = updateButton;
             CancelButton = laterButton;
@@ -156,8 +150,9 @@ namespace Funbit.Ets.Telemetry.Server
             bottomPanel.Controls.AddRange(new Control[] { githubLink, laterButton, updateButton });
             Controls.AddRange(new Control[]
             {
-                headerLabel, versionLabel, separator, changelogLabel, webBrowser, bottomPanel
+                headerLabel, versionLabel, notesCard, bottomPanel
             });
+            ActiveControl = updateButton;
 
             ResumeLayout();
         }
@@ -172,39 +167,49 @@ namespace Funbit.Ets.Telemetry.Server
 <meta charset=""utf-8"" />
 <meta http-equiv=""X-UA-Compatible"" content=""IE=edge"" />
 <style>
+html {
+  scrollbar-face-color: #404F60;
+  scrollbar-track-color: #232938;
+  scrollbar-arrow-color: #A0A6B2;
+  scrollbar-shadow-color: #404F60;
+  scrollbar-highlight-color: #404F60;
+  scrollbar-3dlight-color: #232938;
+  scrollbar-darkshadow-color: #232938;
+}
 body {
   font-family: 'Segoe UI', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
   font-size: 14px;
-  color: #222;
-  margin: 8px 12px;
+  color: #DEDEDE;
+  background: #232938;
+  margin: 0 12px 8px 0;
   line-height: 1.6;
 }
 h2 {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #FFFFFF;
   margin: 1em 0 0.4em 0;
   padding-bottom: 4px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #2E3648;
 }
 h2:first-child { margin-top: 0; }
-h3 { font-size: 15px; font-weight: 600; margin: 0.8em 0 0.3em 0; }
+h3 { font-size: 15px; font-weight: 600; color: #FFFFFF; margin: 0.8em 0 0.3em 0; }
 ul, ol { padding-left: 22px; margin: 0.3em 0; }
 ul { list-style-type: disc; }
 ul ul { list-style-type: disc; margin: 2px 0; padding-left: 20px; }
 li { margin: 4px 0; }
 code {
-  background: #f4f4f4;
+  background: #1B202A;
   padding: 1px 5px;
   border-radius: 3px;
   font-family: Consolas, monospace;
   font-size: 13px;
 }
-a { color: #0066cc; text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: #42AEFA; text-decoration: none; }
+a:hover { color: #6CC1FF; text-decoration: underline; }
 p { margin: 0.4em 0; }
-strong { font-weight: 600; }
-hr { border: none; border-top: 1px solid #e0e0e0; margin: 12px 0; }
+strong { font-weight: 600; color: #FFFFFF; }
+hr { border: none; border-top: 1px solid #2E3648; margin: 12px 0; }
 </style>
 </head>
 <body>" + body + @"</body>

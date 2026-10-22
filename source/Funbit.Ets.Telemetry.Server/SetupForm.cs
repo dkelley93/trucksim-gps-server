@@ -2,21 +2,22 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Reflection;
 using System.Windows.Forms;
 using Funbit.Ets.Telemetry.Server.Helpers;
-using Funbit.Ets.Telemetry.Server.Properties;
 using Funbit.Ets.Telemetry.Server.Setup;
+using Funbit.Ets.Telemetry.Server.Ui;
 
 namespace Funbit.Ets.Telemetry.Server
 {
-    public partial class SetupForm : Form
+    public partial class SetupForm : DarkDialog
     {
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         bool _setupFinished;
 
-        readonly Dictionary<ISetup, PictureBox> _setupStatusImages = new Dictionary<ISetup, PictureBox>();
+        readonly Dictionary<ISetup, StepIcon> _setupStatusImages = new Dictionary<ISetup, StepIcon>();
 
         public SetupForm()
         {
@@ -27,7 +28,7 @@ namespace Funbit.Ets.Telemetry.Server
             string port = ConfigurationManager.AppSettings["Port"];
             string mode = Program.UninstallMode ? "uninstall" : "install";
             Text = L.Get("setup.title");
-            groupBox.Text = L.Get("setup.status_group");
+            statusTitle.Text = L.Get("setup.status_group");
             vcredistStatusLabel.Text = L.Get("setup.step_vcredist");
             pluginStatusLabel.Text = L.Get("setup.step_plugin_" + mode);
             firewallStatusLabel.Text = L.Get("setup.step_firewall_" + mode, port);
@@ -51,14 +52,8 @@ namespace Funbit.Ets.Telemetry.Server
                         break;
                 }
             }
-            // convert status enumeration to images
-            Bitmap statusImage = inverseStatus == SetupStatus.Uninstalled
-                                     ? Resources.StatusIcon
-                                     : (inverseStatus == SetupStatus.Installed
-                                            ? Resources.SuccessStatusIcon
-                                            : Resources.FailureStatusIcon);
             if (_setupStatusImages.ContainsKey(step))
-                _setupStatusImages[step].Image = statusImage;
+                _setupStatusImages[step].Status = inverseStatus;
         }
         
         private void SetupForm_Load(object sender, EventArgs e)
@@ -69,7 +64,7 @@ namespace Funbit.Ets.Telemetry.Server
             // make sure that game is not running
             if (Ets2ProcessHelper.IsEts2Running)
             {
-                MessageBox.Show(this, L.Get("setup.game_running"), L.Get("setup.warning_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                DarkMessageBox.Show(this, L.Get("setup.game_running"), L.Get("setup.warning_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.Abort;
                 return;
             }
@@ -92,7 +87,7 @@ namespace Funbit.Ets.Telemetry.Server
                 catch (Exception ex)
                 {
                     Log.Error(ex);
-                    MessageBox.Show(this, L.Get("setup.elevation_required"), L.Get("setup.elevation_title"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                    DarkMessageBox.Show(this, L.Get("setup.elevation_required"), L.Get("setup.elevation_title"), MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                     DialogResult = DialogResult.Abort;
                     return;
                 }
@@ -137,7 +132,7 @@ namespace Funbit.Ets.Telemetry.Server
             if (Program.UninstallMode)
                 Helpers.Settings.Clear();
 
-            MessageBox.Show(this, message, L.Get("setup.done_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DarkMessageBox.Show(this, message, L.Get("setup.done_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             Close();
         }
 
@@ -150,6 +145,52 @@ namespace Funbit.Ets.Telemetry.Server
         private void helpLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             ProcessHelper.OpenUrl("https://github.com/trucksim-gps/trucksim-gps-server/");
+        }
+
+        sealed class StepIcon : Control
+        {
+            SetupStatus _status;
+
+            public StepIcon()
+            {
+                DoubleBuffered = true;
+                Size = new Size(24, 24);
+                BackColor = DarkTheme.Card;
+            }
+
+            public SetupStatus Status
+            {
+                get { return _status; }
+                set { _status = value; Invalidate(); }
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var g = e.Graphics;
+                g.Clear(BackColor);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                var circle = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+                if (_status == SetupStatus.Uninstalled)
+                {
+                    using (var pen = new Pen(DarkTheme.ControlBorder, 1.5f))
+                        g.DrawEllipse(pen, RectangleF.Inflate(circle, -1, -1));
+                    return;
+                }
+                bool done = _status == SetupStatus.Installed;
+                using (var brush = new SolidBrush(done ? DarkTheme.GreenBg : DarkTheme.RedBg))
+                    g.FillEllipse(brush, circle);
+                float c = Width / 2f;
+                using (var pen = new Pen(done ? DarkTheme.Green : DarkTheme.Red, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+                {
+                    if (done)
+                        g.DrawLines(pen, new[] { new PointF(c - 5, c), new PointF(c - 1.5f, c + 3.5f), new PointF(c + 5, c - 3.5f) });
+                    else
+                    {
+                        g.DrawLine(pen, c - 4, c - 4, c + 4, c + 4);
+                        g.DrawLine(pen, c + 4, c - 4, c - 4, c + 4);
+                    }
+                }
+            }
         }
     }
 }

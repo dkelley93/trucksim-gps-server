@@ -69,7 +69,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
         }
     }
 
-    public sealed class DarkButton : Control
+    public sealed class DarkButton : Control, IButtonControl
     {
         bool _hover;
         int _spinnerAngle;
@@ -79,6 +79,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
         public bool Busy { get; set; }
         public bool AutoWidth { get; set; }
         public float Radius { get; set; } = 8f;
+        public DialogResult DialogResult { get; set; }
 
         public DarkButton()
         {
@@ -161,10 +162,10 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                     e.Graphics.DrawArc(pen, x, (Height - size) / 2, size, size, _spinnerAngle, 270);
                 }
                 textRect = new Rectangle(x + size + 8, 0, textWidth + 4, Height);
-                TextRenderer.DrawText(e.Graphics, Text, Font, textRect, text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                TextRenderer.DrawText(e.Graphics, Text, Font, textRect, text, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix);
                 return;
             }
-            TextRenderer.DrawText(e.Graphics, Text, Font, textRect, text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(e.Graphics, Text, Font, textRect, text, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -172,6 +173,50 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
                 OnClick(EventArgs.Empty);
             base.OnKeyDown(e);
+        }
+
+        protected override void OnClick(EventArgs e)
+        {
+            if (DialogResult != DialogResult.None)
+                FindForm().DialogResult = DialogResult;
+            base.OnClick(e);
+        }
+
+        public void NotifyDefault(bool value) { }
+
+        public void PerformClick()
+        {
+            if (Enabled)
+                OnClick(EventArgs.Empty);
+        }
+    }
+
+    public sealed class DarkProgressBar : Control
+    {
+        int _value;
+
+        public DarkProgressBar()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+            BackColor = DarkTheme.Window;
+            Height = 8;
+        }
+
+        public int Value
+        {
+            get { return _value; }
+            set { _value = Math.Max(0, Math.Min(100, value)); Invalidate(); }
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.Clear(BackColor);
+            float radius = Height / 2f;
+            DarkTheme.FillRounded(e.Graphics, new RectangleF(0, 0, Width - 1, Height - 1), radius, DarkTheme.Secondary);
+            float fill = (Width - 1) * _value / 100f;
+            if (fill >= Height)
+                DarkTheme.FillRounded(e.Graphics, new RectangleF(0, 0, fill, Height - 1), radius, DarkTheme.Blue);
         }
     }
 

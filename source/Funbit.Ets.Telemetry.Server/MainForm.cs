@@ -428,7 +428,7 @@ namespace Funbit.Ets.Telemetry.Server
             {
                 if (Program.UninstallMode && SetupManager.Steps.All(s => s.Status == SetupStatus.Uninstalled))
                 {
-                    MessageBox.Show(this, L.Get("setup.nothing_to_uninstall"), L.Get("setup.done_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    DarkMessageBox.Show(this, L.Get("setup.nothing_to_uninstall"), L.Get("setup.done_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                     Environment.Exit(0);
                 }
 
@@ -748,7 +748,7 @@ namespace Funbit.Ets.Telemetry.Server
             {
                 if (Ets2ProcessHelper.IsEts2Running)
                 {
-                    MessageBox.Show(this, L.Get("setup.game_running"), L.Get("setup.warning_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    DarkMessageBox.Show(this, L.Get("setup.game_running"), L.Get("setup.warning_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -863,7 +863,7 @@ namespace Funbit.Ets.Telemetry.Server
                 {
                     if (reportErrors)
                         BeginInvoke(new Action(() =>
-                            MessageBox.Show(this, L.Get("update.unreachable"), L.Get("update.unreachable_title"),
+                            DarkMessageBox.Show(this, L.Get("update.unreachable"), L.Get("update.unreachable_title"),
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning)));
                 }
             });
@@ -874,7 +874,7 @@ namespace Funbit.Ets.Telemetry.Server
             if (!info.IsUpdateAvailable)
             {
                 if (reportErrors)
-                    MessageBox.Show(this, L.Get("update.latest", info.InstalledVersion.ToString(3)), L.Get("update.latest_title"),
+                    DarkMessageBox.Show(this, L.Get("update.latest", info.InstalledVersion.ToString(3)), L.Get("update.latest_title"),
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -916,7 +916,7 @@ namespace Funbit.Ets.Telemetry.Server
             {
                 Log.Error("Update download failed", downloadError);
                 SafeDelete(tempPath);
-                MessageBox.Show(this, L.Get("update.download_failed"), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                DarkMessageBox.Show(this, L.Get("update.download_failed"), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -929,7 +929,7 @@ namespace Funbit.Ets.Telemetry.Server
             {
                 Log.Error("Could not open downloaded update for verification", ex);
                 SafeDelete(tempPath);
-                MessageBox.Show(this, L.Get("update.open_failed"), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                DarkMessageBox.Show(this, L.Get("update.open_failed"), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
 
@@ -942,7 +942,7 @@ namespace Funbit.Ets.Telemetry.Server
                         verification.FailureReason, verification.SignerSubject ?? "<unknown>");
                     lockHandle.Dispose();
                     SafeDelete(tempPath);
-                    MessageBox.Show(this, L.Get("update.rejected"), L.Get("update.rejected_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DarkMessageBox.Show(this, L.Get("update.rejected"), L.Get("update.rejected_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
@@ -953,7 +953,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.ErrorFormat("Update rejected, downgrade guard failed: {0}", downgradeReason);
                     lockHandle.Dispose();
                     SafeDelete(tempPath);
-                    MessageBox.Show(this, L.Get("update.rejected"), L.Get("update.rejected_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DarkMessageBox.Show(this, L.Get("update.rejected"), L.Get("update.rejected_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
@@ -974,7 +974,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Error("Failed to launch verified update installer", ex);
                     lockHandle.Dispose();
                     SafeDelete(tempPath);
-                    MessageBox.Show(this, L.Get("update.launch_failed", ex.Message), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    DarkMessageBox.Show(this, L.Get("update.launch_failed", ex.Message), L.Get("update.failed_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
             }
@@ -1027,37 +1027,28 @@ namespace Funbit.Ets.Telemetry.Server
             }
         }
 
-        sealed class UpdateDownloadDialog : Form
+        sealed class UpdateDownloadDialog : DarkDialog
         {
-            readonly ProgressBar _bar;
+            readonly DarkProgressBar _bar;
 
             public UpdateDownloadDialog()
             {
                 Text = L.Get("update.downloading_title");
-                FormBorderStyle = FormBorderStyle.FixedDialog;
-                StartPosition = FormStartPosition.CenterParent;
                 ControlBox = false;
-                MinimizeBox = false;
-                MaximizeBox = false;
-                ShowInTaskbar = false;
-                ClientSize = new Size(380, 90);
+                ClientSize = new Size(400, 104);
 
                 var label = new Label
                 {
                     Text = L.Get("update.downloading"),
                     AutoSize = false,
-                    Size = new Size(340, 20),
-                    Location = new Point(20, 18),
-                    Font = new Font("Segoe UI", 9.5f)
+                    Size = new Size(352, 34),
+                    Location = new Point(24, 20)
                 };
 
-                _bar = new ProgressBar
+                _bar = new DarkProgressBar
                 {
-                    Location = new Point(20, 48),
-                    Size = new Size(340, 20),
-                    Minimum = 0,
-                    Maximum = 100,
-                    Style = ProgressBarStyle.Continuous
+                    Location = new Point(24, 68),
+                    Size = new Size(352, 8)
                 };
 
                 Controls.Add(label);
@@ -1066,7 +1057,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             public void SetProgress(int percentage)
             {
-                _bar.Value = Math.Max(0, Math.Min(100, percentage));
+                _bar.Value = percentage;
             }
 
             public void MarkDone()
@@ -1201,7 +1192,7 @@ namespace Funbit.Ets.Telemetry.Server
                 string gamePath = gameName == "ETS2" ? _settings.Ets2GamePath : _settings.AtsGamePath;
                 if (string.IsNullOrEmpty(gamePath) || gamePath == "N/A" || !IsValidGamePath(gamePath, gameName))
                 {
-                    MessageBox.Show(this, L.Get("plugin.copy_invalid_path", gameName), L.Get("plugin.copy_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    DarkMessageBox.Show(this, L.Get("plugin.copy_invalid_path", gameName), L.Get("plugin.copy_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -1215,14 +1206,14 @@ namespace Funbit.Ets.Telemetry.Server
                 Log.InfoFormat("Copying {1} x64 plugin DLL file to: {0}", destX64Path, gameName);
                 File.Copy(PluginSetup.LocalX64PluginPath, destX64Path, true);
 
-                MessageBox.Show(this, L.Get("plugin.copy_success", gameName, destX86Path, destX64Path), L.Get("plugin.copy_title"),
+                DarkMessageBox.Show(this, L.Get("plugin.copy_success", gameName, destX86Path, destX64Path), L.Get("plugin.copy_title"),
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 UpdatePluginRow(gameName == "ETS2" ? _ets2Row : _atsRow);
             }
             catch (Exception ex)
             {
                 Log.Error(ex);
-                MessageBox.Show(this, L.Get("plugin.copy_failed", gameName, ex.Message), L.Get("plugin.copy_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                DarkMessageBox.Show(this, L.Get("plugin.copy_failed", gameName, ex.Message), L.Get("plugin.copy_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

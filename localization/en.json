@@ -43,6 +43,22 @@
     "text": "Unnamed device",
     "context": "Fallback name for a linked mobile device that did not report a name."
   },
+  "dialog.cancel": {
+    "text": "Cancel",
+    "context": "Button that closes a dialog of the PC Telemetry app without doing anything."
+  },
+  "dialog.no": {
+    "text": "No",
+    "context": "Button of a yes/no question dialog in the PC Telemetry app; the question text explains what No does."
+  },
+  "dialog.ok": {
+    "text": "OK",
+    "context": "Button that closes a message dialog of the PC Telemetry app (information, warning or error)."
+  },
+  "dialog.yes": {
+    "text": "Yes",
+    "context": "Button of a yes/no question dialog in the PC Telemetry app; the question text explains what Yes does."
+  },
   "language.system": {
     "text": "System default",
     "context": "First entry of the Language submenu: follow the Windows display language instead of a fixed language."
@@ -179,6 +195,10 @@
     "text": "TruckSim GPS website",
     "context": "Help menu entry opening trucksimgps.com."
   },
+  "plugin.browse_description": {
+    "text": "Select the {0} installation folder",
+    "context": "Instruction at the top of the Windows folder picker. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated)."
+  },
   "plugin.copy_failed": {
     "text": "Failed to copy the {0} plugin:\n\n{1}",
     "context": "Error dialog when installing the plugin fails; {0} = ETS2 or ATS, {1} = the error message."
@@ -195,6 +215,10 @@
     "text": "Game plugin",
     "context": "Title of the dialogs about installing the game plugin."
   },
+  "plugin.game_setup_title": {
+    "text": "{0} setup",
+    "context": "Window title of the questions the setup asks about one game's installation folder. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated)."
+  },
   "plugin.install": {
     "text": "Install plugin",
     "context": "Small button in the Game plugin card that copies the telemetry plugin DLL into the game folder. Shown only when the plugin is missing."
@@ -207,13 +231,45 @@
     "text": "Installed",
     "context": "Game plugin status: the telemetry plugin is present in the game folder."
   },
+  "plugin.invalid_folder": {
+    "text": "This folder is not a {0} installation.\n\nSelect the main game folder, the one that contains base.scs and the bin folder.",
+    "context": "Warning after the user picked a wrong folder for the game. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). 'base.scs' and 'bin' are file and folder names: copy them verbatim. Keep the blank line."
+  },
+  "plugin.invalid_folder_title": {
+    "text": "Invalid folder",
+    "context": "Title of the warning shown when the folder picked in the folder picker is not a game installation."
+  },
   "plugin.invalid_path": {
     "text": "Invalid path (Server > Re-run Setup)",
     "context": "Game plugin status when the configured game folder is not a valid game installation; 'Server > Re-run Setup' names the menu path (keys menu.server, menu.rerun_setup)."
   },
+  "plugin.keep_path": {
+    "text": "{0} is set up at this folder:\n\n{1}\n\nKeep using it?",
+    "context": "Question during Server > Re-run Setup about one game. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). {1} is the folder path. The buttons are 'Keep this folder' and 'Choose another folder'. Keep the blank lines."
+  },
+  "plugin.keep_path_no": {
+    "text": "Choose another folder",
+    "context": "Button answering plugin.keep_path: open a folder picker to choose a different game installation folder."
+  },
+  "plugin.keep_path_yes": {
+    "text": "Keep this folder",
+    "context": "Button answering plugin.keep_path: keep the current game installation folder and continue setup."
+  },
   "plugin.not_configured": {
     "text": "Not configured",
     "context": "Game plugin status when the game folder was skipped during setup (game not installed)."
+  },
+  "plugin.not_detected": {
+    "text": "{0} could not be found automatically.\n\nDo you want to choose its installation folder yourself? If you skip it, you can set it up later with Server > Re-run Setup.",
+    "context": "Question in the setup when the game installation was not detected. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). 'Server > Re-run Setup' is the menu path in the app: translate it exactly as the existing menu items are translated (menu Server, item Re-run Setup). The buttons are 'Choose folder' and 'Skip this game'. Keep the blank line."
+  },
+  "plugin.not_detected_browse": {
+    "text": "Choose folder",
+    "context": "Button answering plugin.not_detected: open a folder picker to locate the game installation."
+  },
+  "plugin.not_detected_skip": {
+    "text": "Skip this game",
+    "context": "Button answering plugin.not_detected: continue setup without this game; it can be configured later."
   },
   "plugin.not_installed": {
     "text": "Not installed",
@@ -286,6 +342,14 @@
   "setup.error_title": {
     "text": "Setup error",
     "context": "Title of an error dialog raised during setup."
+  },
+  "setup.firewall_failed_install": {
+    "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, open TCP port {0} in it manually.",
+    "context": "Error shown by the setup when adding the Windows Firewall rule failed. {0} is the port number. Keep the blank line."
+  },
+  "setup.firewall_failed_uninstall": {
+    "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, close TCP port {0} in it manually.",
+    "context": "Error shown by the uninstaller when removing the Windows Firewall rule failed. {0} is the port number. Keep the blank line."
   },
   "setup.game_running": {
     "text": "The ETS2/ATS game must not be running during setup.\nPlease exit the game and try again.",
@@ -470,6 +534,38 @@
   "update.view_on_github": {
     "text": "View the full release on GitHub",
     "context": "Link in the update dialog opening the release page."
+  },
+  "vcredist.download": {
+    "text": "Download",
+    "context": "Main button of the missing Visual C++ Redistributable dialog: opens the Microsoft download of the installer in the browser."
+  },
+  "vcredist.download_started": {
+    "text": "Download started in your browser.\n\nAfter installation completes, please restart this application.",
+    "context": "Body of the dialog shown after the Visual C++ Redistributable download opened in the browser; the app closes when the user confirms. Keep the blank line (\n\n)."
+  },
+  "vcredist.download_started_title": {
+    "text": "Download started",
+    "context": "Title of the dialog shown after the Visual C++ Redistributable download opened in the browser."
+  },
+  "vcredist.link_failed": {
+    "text": "Could not open the link.\n\nPlease visit this address manually:\n{0}",
+    "context": "Error shown when the browser could not be opened for a Visual C++ Redistributable link; {0} is the web address to copy. Keep the line breaks."
+  },
+  "vcredist.message": {
+    "text": "Microsoft Visual C++ 2015-2022 Redistributable is required but not installed.\n\nThis is needed for the telemetry plugin to communicate with ETS2/ATS.\n\nWithout it, the mobile app won't receive truck data from the simulator.",
+    "context": "Body of the missing Visual C++ Redistributable dialog. Keep the product name 'Microsoft Visual C++ 2015-2022 Redistributable' and the game abbreviations ETS2/ATS as is. Keep the blank lines (\n\n) between the three paragraphs."
+  },
+  "vcredist.more_info": {
+    "text": "More information at Microsoft",
+    "context": "Link at the bottom left of the missing Visual C++ Redistributable dialog that opens Microsoft's page about the Redistributable."
+  },
+  "vcredist.skip": {
+    "text": "Skip for now",
+    "context": "Secondary button of the missing Visual C++ Redistributable dialog: closes it without installing; the app keeps running but cannot read game data."
+  },
+  "vcredist.title": {
+    "text": "Missing dependency",
+    "context": "Window title of the dialog shown when the Microsoft Visual C++ Redistributable, which the game telemetry plugin needs, is not installed on the PC."
   },
   "window.title": {
     "text": "TruckSim GPS · PC Telemetry",

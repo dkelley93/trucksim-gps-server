@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows.Forms;
 using Funbit.Ets.Telemetry.Server.Helpers;
+using Funbit.Ets.Telemetry.Server.Ui;
 using Microsoft.Win32;
 
 namespace Funbit.Ets.Telemetry.Server.Setup
@@ -424,17 +425,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                     if (!Program.ForceSetupMode)
                         return;
 
-                    var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-
-                    var confirmResult = MessageBox.Show(owner,
-                        $">>> {gameFullName} <<<" + Environment.NewLine +
-                        "Installation is currently configured at:" + Environment.NewLine + Environment.NewLine +
-                        GamePath + Environment.NewLine + Environment.NewLine +
-                        @"Do you want to keep using this installation path?" + Environment.NewLine + Environment.NewLine +
-                        @"[YES]    = Keep this path and continue" + Environment.NewLine +
-                        @"[NO]     = Browse for a different location",
-                        $"{gameFullName} Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
-                        MessageBoxDefaultButton.Button1);
+                    var confirmResult = DarkMessageBox.Ask(owner, L.Get("plugin.keep_path", GameDirectoryName, GamePath),
+                        L.Get("plugin.game_setup_title", GameDirectoryName), L.Get("plugin.keep_path_yes"), L.Get("plugin.keep_path_no"));
 
                     if (confirmResult == DialogResult.Yes)
                     {
@@ -455,16 +447,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             
             void ShowDetectionFailedAndBrowse(IWin32Window owner)
             {
-                var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-                
-                var detectionResult = MessageBox.Show(owner,
-                    $">>> {gameFullName} <<<" + Environment.NewLine +
-                    "Installation could not be automatically detected." + Environment.NewLine + Environment.NewLine +
-                    $"Do you want to manually locate your {gameFullName} installation?" + Environment.NewLine + Environment.NewLine +
-                    @"[YES]    = Browse to find installation folder" + Environment.NewLine +
-                    @"[NO]     = Skip this game (you can configure it later)",
-                    $"{gameFullName} Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
-                    MessageBoxDefaultButton.Button1);
+                var detectionResult = DarkMessageBox.Ask(owner, L.Get("plugin.not_detected", GameDirectoryName),
+                    L.Get("plugin.game_setup_title", GameDirectoryName), L.Get("plugin.not_detected_browse"), L.Get("plugin.not_detected_skip"));
                     
                 if (detectionResult == DialogResult.No)
                 {
@@ -477,12 +461,10 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             
             void BrowseForPath(IWin32Window owner)
             {
-                var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-                
                 while (!IsPathValid())
                 {
                     var browser = new FolderBrowserDialog();
-                    browser.Description = $"Select {gameFullName} installation folder";
+                    browser.Description = L.Get("plugin.browse_description", GameDirectoryName);
                     browser.ShowNewFolderButton = false;
                     var result = browser.ShowDialog(owner);
                     
@@ -495,14 +477,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                     GamePath = browser.SelectedPath;
                     
                     if (!IsPathValid())
-                    {
-                        string executableName = _gameName == "ETS2" ? "eurotrucks2.exe" : "amtrucks.exe";
-                        MessageBox.Show(owner,
-                            $">>> {gameFullName} <<<" + Environment.NewLine +
-                            "The selected folder does not appear to be a valid installation." + Environment.NewLine + Environment.NewLine +
-                            $"Please select the main {gameFullName} folder that contains 'base.scs' and 'bin' folder.",
-                            "Invalid Path", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                    }
+                        DarkMessageBox.Show(owner, L.Get("plugin.invalid_folder", GameDirectoryName), L.Get("plugin.invalid_folder_title"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             
