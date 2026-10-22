@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using Funbit.Ets.Telemetry.Server.Helpers;
 
 namespace Funbit.Ets.Telemetry.Server
 {
@@ -33,7 +34,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             SuspendLayout();
 
-            Text = "Update Available \u2013 TruckSim GPS Telemetry Server";
+            Text = L.Get("update.title");
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             ClientSize = new Size(560, 500);
             MinimumSize = new Size(450, 400);
@@ -45,7 +46,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             var headerLabel = new Label
             {
-                Text = "A new version is available!",
+                Text = L.Get("update.header"),
                 Font = new Font("Segoe UI", 12f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(30, 30, 30),
                 AutoSize = false,
@@ -76,7 +77,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             var changelogLabel = new Label
             {
-                Text = "Release Notes",
+                Text = L.Get("update.release_notes"),
                 Font = new Font("Segoe UI Semibold", 9.75f),
                 ForeColor = Color.FromArgb(60, 60, 60),
                 AutoSize = true,
@@ -104,7 +105,7 @@ namespace Funbit.Ets.Telemetry.Server
             };
 
             // Write HTML to temp file with UTF-8 BOM so IE correctly handles emoji
-            string html = BuildHtml(releaseBody ?? "No release notes available.");
+            string html = BuildHtml(string.IsNullOrWhiteSpace(releaseBody) ? L.Get("update.no_release_notes") : releaseBody);
             _tempHtmlPath = Path.Combine(Path.GetTempPath(), $"trucksimgps_update_{Guid.NewGuid():N}.html");
             File.WriteAllText(_tempHtmlPath, html, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
             webBrowser.Navigate(_tempHtmlPath);
@@ -117,7 +118,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             var githubLink = new LinkLabel
             {
-                Text = "View full release on GitHub",
+                Text = L.Get("update.view_on_github"),
                 Font = new Font("Segoe UI", 9f),
                 AutoSize = true,
                 Location = new Point(20, 18)
@@ -129,7 +130,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             var laterButton = new Button
             {
-                Text = "Later",
+                Text = L.Get("update.later"),
                 Font = new Font("Segoe UI", 9.75f),
                 Size = new Size(90, 34),
                 Location = new Point(340, 12),
@@ -140,7 +141,7 @@ namespace Funbit.Ets.Telemetry.Server
 
             var updateButton = new Button
             {
-                Text = "Update Now",
+                Text = L.Get("update.now"),
                 Font = new Font("Segoe UI", 9.75f, FontStyle.Bold),
                 Size = new Size(110, 34),
                 Location = new Point(436, 12),
