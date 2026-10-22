@@ -13,6 +13,7 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
     {
         public const string PairInfo = "tsgps-pair-v1";
         public const string RelayInfo = "tsgps-relay-v1";
+        public const string VoiceInfo = "tsgps-voice-v1";
         const int NonceBytes = 12;
         const int TagBits = 128;
 
@@ -95,6 +96,11 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
             var output = new byte[length];
             generator.GenerateBytes(output, 0, length);
             return output;
+        }
+
+        public static byte[] VoiceHelloKey(byte[] deviceKey)
+        {
+            return Hkdf(deviceKey, new byte[0], VoiceInfo, 32);
         }
 
         public static bool ConstantTimeEquals(byte[] a, byte[] b)

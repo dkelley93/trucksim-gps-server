@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -9,9 +10,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Funbit.Ets.Telemetry.Server;
+using Funbit.Ets.Telemetry.Server.Controllers;
 using Funbit.Ets.Telemetry.Server.Helpers;
 using Funbit.Ets.Telemetry.Server.Services;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using TruckSimGps.VoiceFx;
 
 namespace PairingTests
 {
@@ -28,6 +32,10 @@ namespace PairingTests
             Run("http routes", () => HttpRoutes().GetAwaiter().GetResult());
             Run("handshake", Handshake);
             Run("throughput meter", ThroughputMeter);
+            Run("voice clips and cache", VoiceClipsAndCache);
+            Run("voice decoder", VoiceDecode);
+            Run("voice fx vectors", VoiceFxVectors);
+            Run("voice routes", () => VoiceRoutes().GetAwaiter().GetResult());
 
             Console.WriteLine(_failures == 0 ? "ALL PASSED" : $"FAILED ({_failures})");
             return _failures == 0 ? 0 : 1;
@@ -98,6 +106,8 @@ namespace PairingTests
             var tampered = Crypto.FromBase64Url(envelope);
             tampered[tampered.Length - 1] ^= 1;
             Check(Throws(() => Crypto.OpenEnvelope(Crypto.FromHex((string)env["key"]), Crypto.Base64Url(tampered))), "tampered envelope rejected");
+            var voice = doc["hkdf"].First(x => (string)x["name"] == "voice_hello_key");
+            Check(Crypto.ToHex(Crypto.VoiceHelloKey(Crypto.FromHex((string)voice["ikm"]))) == (string)voice["okm"], "voice hello key = HKDF(deviceKey, empty, tsgps-voice-v1)");
             Check(Crypto.ToHex(Crypto.TunnelNonce(2, 1)) == "000000020000000000000001", "tunnel nonce layout");
             Check(Crypto.ToHex(Crypto.TunnelNonce(1, ulong.MaxValue)) == "00000001ffffffffffffffff", "tunnel nonce max counter");
         }
@@ -228,7 +238,7 @@ namespace PairingTests
             using (var pairing = new PairingSessionService(api.BaseUrl, settings.PcId, 31377, () => new List<string> { "127.0.0.1/8" }, TimeSpan.FromMinutes(2)))
             {
                 int port = FreePort();
-                using (var server = new MinimalHttpServer(port, pairing, devices))
+                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(Path.Combine(dir, "voice")), new FakeVoiceAudio())))
                 using (var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}/") })
                 {
                     server.Start();
@@ -408,6 +418,372 @@ namespace PairingTests
             Check(!HandshakeResponder.Answer(Crypto.RandomBytes(32), candidates, "", nonceAText, env).Ok, "wrong key rejected");
             Check(!HandshakeResponder.Answer(deviceKey, candidates, "", Crypto.Base64Url(Crypto.RandomBytes(16)), env).Ok, "nonceA mismatch rejected");
             Check(!HandshakeResponder.Answer(deviceKey, candidates, "", nonceAText, "not-base64!").Ok, "garbage env rejected");
+        }
+
+        static VoiceClip PcmClip(string id, int samples, short value = 1000)
+        {
+            var payload = new byte[samples * 2];
+            for (int i = 0; i < samples; i++)
+            {
+                payload[2 * i] = (byte)value;
+                payload[2 * i + 1] = (byte)(value >> 8);
+            }
+            return new VoiceClip { Id = id, Codec = VoiceCodec.Pcm16, SampleRate = 44100, SkipSamples = 0, ValidSamples = samples, Payload = payload };
+        }
+
+        static void VoiceClipsAndCache()
+        {
+            var key = Crypto.RandomBytes(32);
+            string id = Crypto.RandomHexId();
+            var blob = VoiceClip.Seal(key, PcmClip(id, 441));
+            var opened = VoiceClip.Open(key, blob);
+            Check(opened.Id == id && opened.Codec == VoiceCodec.Pcm16 && opened.ValidSamples == 441 && opened.Payload.Length == 882, "clip seal/open round trip");
+            var tampered = (byte[])blob.Clone();
+            tampered[tampered.Length - 20] ^= 1;
+            Check(Throws(() => VoiceClip.Open(key, tampered)), "tampered clip rejected");
+            Check(Throws(() => VoiceClip.Open(Crypto.RandomBytes(32), blob)), "clip under another key rejected");
+
+            string dir = Path.Combine(Path.GetTempPath(), "tsgps-voice-tests-" + Guid.NewGuid().ToString("N"));
+            var cache = new VoiceCache(dir, 2500);
+            string deviceId = Crypto.RandomHexId();
+            Check(Throws(() => cache.Store(deviceId, id, blob)), "store before hello throws");
+            Check(cache.Hello(deviceId, key).Count == 0 && cache.HasKey(deviceId), "first hello: empty cache, key held");
+            cache.Store(deviceId, id, blob);
+            Check(Throws(() => cache.Store(deviceId, Crypto.RandomHexId(), blob)), "blob stored under another id rejected");
+            Check(cache.Load(deviceId, id).ValidSamples == 441, "stored clip loads");
+            Check(cache.Load(deviceId, Crypto.RandomHexId()) == null, "unknown clip loads as null");
+            Check(new VoiceCache(dir).Hello(deviceId, key).SequenceEqual(new[] { id }), "a restarted cache lists the clip for the same key");
+            var stored = File.ReadAllBytes(Directory.GetFiles(Path.Combine(dir, deviceId), "*.clip")[0]);
+            Check(Encoding.ASCII.GetString(stored).IndexOf("TSGC", StringComparison.Ordinal) < 0, "clips are stored encrypted");
+
+            string second = Crypto.RandomHexId();
+            Thread.Sleep(20);
+            cache.Store(deviceId, second, VoiceClip.Seal(key, PcmClip(second, 441)));
+            string third = Crypto.RandomHexId();
+            Thread.Sleep(20);
+            cache.Store(deviceId, third, VoiceClip.Seal(key, PcmClip(third, 441)));
+            var held = cache.Hello(deviceId, key);
+            Check(held.Count == 2 && !held.Contains(id) && held.Contains(third), "size cap drops the oldest clip first");
+
+            File.WriteAllBytes(Path.Combine(dir, deviceId, third + ".clip"), new byte[40]);
+            Check(cache.Load(deviceId, third) == null && !File.Exists(Path.Combine(dir, deviceId, third + ".clip")), "an unreadable clip is deleted on load");
+
+            Check(cache.Hello(deviceId, Crypto.RandomBytes(32)).Count == 0, "a new key wipes the device's clips");
+            cache.Forget(deviceId);
+            Check(!cache.HasKey(deviceId) && !Directory.Exists(Path.Combine(dir, deviceId)), "forget drops the key and the folder");
+            Directory.Delete(dir, true);
+        }
+
+        static void VoiceDecode()
+        {
+            var tone = new VoiceClip
+            {
+                Id = Crypto.RandomHexId(), Codec = VoiceCodec.Mp3, SampleRate = 44100, SkipSamples = 1105, ValidSamples = 22050,
+                Payload = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "voice_tone.mp3"))
+            };
+            var pcm = new float[22050];
+            VoiceDecoder.DecodeInto(tone, pcm, 0);
+            double rms = Math.Sqrt(pcm.Skip(2000).Take(18000).Average(x => (double)x * x));
+            Check(rms > 0.05 && rms < 0.15, "MP3 clip decodes to the tone (rms " + rms.ToString("0.000") + ")");
+            tone.ValidSamples = 30000;
+            Check(Throws(() => VoiceDecoder.DecodeInto(tone, new float[30000], 0)), "frames shorter than the declared length throw");
+
+            int rate;
+            var joined = VoiceDecoder.Join(new[] { PcmClip("a", 441, 16384), PcmClip("b", 882, 16384) }, PcmClip("c", 441, 16384), 300, out rate);
+            Check(rate == 44100 && joined.Length == 441 + 882 + 13230 + 441 && joined[1323] == 0f, "join = clips + pause + then, no lead-in");
+            var prompt = VoiceDecoder.ToPcm16(joined, 100, rate, 0.5f);
+            Check(prompt.Length == 4410 + joined.Length && prompt[0] == 0 && prompt[4409] == 0 && prompt[4410] == 8192 && prompt[4410 + 1323] == 0 && prompt[prompt.Length - 1] == 8192,
+                "lead-in silence goes in front, gain applied");
+            var loud = VoiceDecoder.ToPcm16(VoiceDecoder.Join(new[] { PcmClip("a", 10, 30000) }, null, 0, out rate), 0, rate, 2f);
+            Check(loud.All(x => x == short.MaxValue), "gain clips at full scale");
+            Check(VoiceDecoder.ToPcm16(100.6f / 32767) == 101 && VoiceDecoder.ToPcm16(-100.6f / 32767) == -101 && VoiceDecoder.ToPcm16(-2f) == -32767,
+                "PCM16 rounds like the app's Pcm16.FromFloat (full scale 32767)");
+        }
+
+        static JObject FxVectors()
+        {
+            return JObject.Parse(File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "voice_fx_vectors.json")));
+        }
+
+        static short[] Unpack(string base64)
+        {
+            using (var deflate = new DeflateStream(new MemoryStream(Convert.FromBase64String(base64)), CompressionMode.Decompress))
+            using (var raw = new MemoryStream())
+            {
+                deflate.CopyTo(raw);
+                var bytes = raw.ToArray();
+                var pcm = new short[bytes.Length / 2];
+                Buffer.BlockCopy(bytes, 0, pcm, 0, bytes.Length);
+                return pcm;
+            }
+        }
+
+        static VoiceClip VectorClip(string id, short[] pcm, int sampleRate)
+        {
+            var payload = new byte[pcm.Length * 2];
+            Buffer.BlockCopy(pcm, 0, payload, 0, payload.Length);
+            return new VoiceClip { Id = id, Codec = VoiceCodec.Pcm16, SampleRate = sampleRate, SkipSamples = 0, ValidSamples = pcm.Length, Payload = payload };
+        }
+
+        static int MaxError(short[] expected, short[] actual)
+        {
+            if (expected.Length != actual.Length)
+                return int.MaxValue;
+            int max = 0;
+            for (int i = 0; i < expected.Length; i++)
+                max = Math.Max(max, Math.Abs(expected[i] - actual[i]));
+            return max;
+        }
+
+        static void VoiceFxVectors()
+        {
+            var vectors = FxVectors();
+            int rate = (int)vectors["sampleRate"];
+            var jobs = vectors["jobs"].ToList();
+            Check((int)vectors["catalogVersion"] == VoiceFxCatalog.Version, "vectors are for catalog version " + VoiceFxCatalog.Version);
+            Check(vectors["sounds"].Children<JProperty>().Select(p => p.Name).OrderBy(x => x).SequenceEqual(VoiceFxCatalog.Sounds.OrderBy(x => x)),
+                "vectors carry every catalog sound");
+            Check(VoiceFxCatalog.All.All(e => jobs.Any(j => (string)j["name"] == e.Id + ".defaults")), "every effect has a job at its defaults");
+
+            var voice = VoiceDecoder.Decode(VectorClip("voice", Unpack((string)vectors["voice"]), rate));
+            var sounds = new VoiceFxSounds(rate, vectors["sounds"].Children<JProperty>()
+                .ToDictionary(p => p.Name, p => VoiceDecoder.Decode(VectorClip(p.Name, Unpack((string)p.Value), rate))));
+            foreach (var job in jobs)
+            {
+                int jobRate = (int?)job["sampleRate"] ?? rate;
+                var inputs = vectors["rates"]?[jobRate.ToString()];
+                var jobVoice = jobRate == rate ? voice : VoiceDecoder.Decode(VectorClip("voice", Unpack((string)inputs["voice"]), jobRate));
+                var jobSounds = jobRate == rate ? sounds : new VoiceFxSounds(jobRate, ((JObject)inputs["sounds"] ?? new JObject()).Properties()
+                    .ToDictionary(p => p.Name, p => VoiceDecoder.Decode(VectorClip(p.Name, Unpack((string)p.Value), jobRate))));
+                var result = VoiceFxRenderer.Render(jobVoice, jobRate, (string)job["effect"], job["values"].ToObject<Dictionary<string, int>>(), (uint)job["seed"], jobSounds);
+                var expected = Unpack((string)job["pcm16"]);
+                int max = MaxError(expected, VoiceDecoder.ToPcm16(result.Samples, 0, jobRate, 1f));
+                Check(expected.Length == (int)job["length"] && result.PreRollSamples == (int)job["preRollSamples"] && max <= 1,
+                    job["name"] + ": " + result.Samples.Length + " samples, pre-roll " + result.PreRollSamples + ", max error " + max + " LSB");
+            }
+
+            var mp3 = vectors["mp3"];
+            var tone = new VoiceClip
+            {
+                Id = Crypto.RandomHexId(), Codec = VoiceCodec.Mp3, SampleRate = (int)mp3["sampleRate"], SkipSamples = (int)mp3["skipSamples"],
+                ValidSamples = (int)mp3["validSamples"], Payload = File.ReadAllBytes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, (string)mp3["file"]))
+            };
+            int mp3Max = MaxError(Unpack((string)mp3["pcm16"]), VoiceDecoder.ToPcm16(VoiceDecoder.Decode(tone), 0, tone.SampleRate, 1f));
+            Check(mp3Max <= 1, "MP3 fixture decodes to the app's PCM16, max error " + mp3Max + " LSB");
+        }
+
+        sealed class FakeVoiceAudio : IVoiceAudio
+        {
+            public readonly List<string> Calls = new List<string>();
+            public short[] LastPrompt;
+
+            public void PlayPrompt(string reqId, short[] pcm, int sampleRate)
+            {
+                LastPrompt = pcm;
+                Calls.Add("play " + reqId + " " + pcm.Length);
+            }
+
+            public void StopPrompt(string reqId, int fadeMs)
+            {
+                Calls.Add("stop " + reqId + " " + fadeMs);
+            }
+
+            public void PlayEffect(short[] pcm, int sampleRate)
+            {
+                Calls.Add("effect " + pcm.Length);
+            }
+        }
+
+        static HttpRequestMessage VoicePost(string route, string deviceId, object body)
+        {
+            return WithDevice(HttpMethod.Post, "/api/voice/" + route, deviceId, Json(body));
+        }
+
+        static async Task VoiceRoutes()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "tsgps-voice-routes-" + Guid.NewGuid().ToString("N"));
+            var settings = Settings.Load(Path.Combine(dir, "Settings.json"));
+            var devices = new LinkedDeviceStore(settings);
+            var audio = new FakeVoiceAudio();
+            var voiceDir = Path.Combine(dir, "voice");
+            using (var api = new FakeApi((m, p, b) => Tuple.Create(204, "{}")))
+            using (var pairing = new PairingSessionService(api.BaseUrl, settings.PcId, 31377, () => new List<string> { "127.0.0.1/8" }, TimeSpan.FromMinutes(2)))
+            {
+                int port = FreePort();
+                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(voiceDir), audio)))
+                using (var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}/") })
+                {
+                    server.Start();
+                    string deviceId = Crypto.RandomHexId();
+                    var lan = await http.PostAsync("/api/pair/complete-lan", Json(new { deviceId, deviceName = "Pixel 8", nonce = "AA" }));
+                    var deviceKey = Crypto.FromBase64Url((string)JObject.Parse(await lan.Content.ReadAsStringAsync())["deviceKey"]);
+                    var cacheKey = Crypto.RandomBytes(32);
+                    Func<byte[], object> hello = k => new
+                    {
+                        pcId = settings.PcId,
+                        env = Crypto.SealEnvelope(Crypto.VoiceHelloKey(deviceKey), JsonConvert.SerializeObject(new { cacheKey = Crypto.Base64Url(k) }))
+                    };
+
+                    string a = Crypto.RandomHexId(), b = Crypto.RandomHexId(), then = Crypto.RandomHexId();
+                    var play = new { reqId = "r1", ids = new[] { a, b }, thenId = then, leadInMs = 0, thenPauseMs = 300, gain = 1f };
+                    var early = await http.SendAsync(VoicePost("play", deviceId, play));
+                    Check(early.StatusCode == HttpStatusCode.Unauthorized, "play before hello -> 401 hello_required");
+
+                    var anonymous = await http.PostAsync("/api/voice/hello", Json(hello(cacheKey)));
+                    Check(anonymous.StatusCode == HttpStatusCode.Forbidden, "hello without a device header -> 403");
+                    var wrongPc = await http.SendAsync(VoicePost("hello", deviceId, new { pcId = Crypto.RandomHexId(), env = "x" }));
+                    Check(wrongPc.StatusCode == HttpStatusCode.Forbidden, "hello for another PC -> 403");
+                    var forged = await http.SendAsync(VoicePost("hello", deviceId,
+                        new { pcId = settings.PcId, env = Crypto.SealEnvelope(Crypto.RandomBytes(32), JsonConvert.SerializeObject(new { cacheKey = "AA" })) }));
+                    Check(forged.StatusCode == HttpStatusCode.Forbidden, "hello sealed under another key -> 403");
+
+                    var first = await http.SendAsync(VoicePost("hello", deviceId, hello(cacheKey)));
+                    var firstBody = JObject.Parse(await first.Content.ReadAsStringAsync());
+                    Check(first.StatusCode == HttpStatusCode.OK && (int)firstBody["v"] == 1 && !firstBody["ids"].Any(), "hello -> 200 {v: 1, ids: []}");
+
+                    var missing = await http.SendAsync(VoicePost("play", deviceId, play));
+                    var missingIds = JObject.Parse(await missing.Content.ReadAsStringAsync())["ids"].Select(x => (string)x).OrderBy(x => x);
+                    Check((int)missing.StatusCode == 409 && missingIds.SequenceEqual(new[] { a, b, then }.OrderBy(x => x)), "play without the clips -> 409 with every missing id");
+
+                    var anonymousClips = await http.PostAsync("/api/voice/clips", Json(new { clips = new[] { new { id = a, blob = "AA" } } }));
+                    Check(anonymousClips.StatusCode == HttpStatusCode.Unauthorized, "clips without a device key -> 401");
+                    var clips = new[] { a, b, then }.Select(id => new { id, blob = Crypto.Base64Url(VoiceClip.Seal(cacheKey, PcmClip(id, id == b ? 30000 : 441))) }).ToArray();
+                    var upload = await http.SendAsync(VoicePost("clips", deviceId, new { clips }));
+                    var uploadBody = JObject.Parse(await upload.Content.ReadAsStringAsync());
+                    Check(upload.StatusCode == HttpStatusCode.OK && uploadBody["stored"].Count() == 3 && !uploadBody["rejected"].Any() && !audio.Calls.Any(),
+                        "clips (a body over 64 KB) are stored, acked, and nothing plays");
+                    var full = await http.SendAsync(VoicePost("play", deviceId, play));
+                    var fullBody = JObject.Parse(await full.Content.ReadAsStringAsync());
+                    int expected = 441 + 30000 + 13230 + 441;
+                    Check(full.StatusCode == HttpStatusCode.OK && audio.LastPrompt.Length == expected && (int)fullBody["durationMs"] == expected * 1000 / 44100,
+                        "play with ids only -> 200, joined prompt, durationMs");
+
+                    var bulk = Enumerable.Range(0, 25).Select(i => Crypto.RandomHexId())
+                        .Select(id => new { id, blob = Crypto.Base64Url(VoiceClip.Seal(cacheKey, PcmClip(id, 44100))) }).ToArray();
+                    var bulkUpload = await http.SendAsync(VoicePost("clips", deviceId, new { clips = bulk }));
+                    Check(bulkUpload.StatusCode == HttpStatusCode.OK && JObject.Parse(await bulkUpload.Content.ReadAsStringAsync())["stored"].Count() == 25,
+                        "a pack-sized upload (~3 MB body) fits under the 4 MB cap");
+
+                    var again = await http.SendAsync(VoicePost("play", deviceId, new { reqId = "r2", ids = new[] { a }, gain = 1f }));
+                    Check(again.StatusCode == HttpStatusCode.OK && audio.Calls.Last() == "play r2 441", "cached clips play with ids only");
+                    var rehello = await http.SendAsync(VoicePost("hello", deviceId, hello(cacheKey)));
+                    Check(JObject.Parse(await rehello.Content.ReadAsStringAsync())["ids"].Count() == 28, "hello again lists every cached clip");
+
+                    string other = Crypto.RandomHexId();
+                    var swapped = await http.SendAsync(VoicePost("clips", deviceId, new { clips = new[] { new { id = other, clips[0].blob } } }));
+                    var swappedBody = JObject.Parse(await swapped.Content.ReadAsStringAsync());
+                    Check(swapped.StatusCode == HttpStatusCode.OK && (string)swappedBody["rejected"].Single() == other && !swappedBody["stored"].Any(),
+                        "a clip uploaded under another id is rejected, not stored");
+
+                    await http.SendAsync(VoicePost("stop", deviceId, new { reqId = "r4", fadeMs = 100 }));
+                    Check(audio.Calls.Last() == "stop r4 100", "stop reaches the audio with its fade");
+                    var foreign = await http.SendAsync(VoicePost("stop", Crypto.RandomHexId(), new { fadeMs = 0 }));
+                    Check(foreign.StatusCode == HttpStatusCode.Unauthorized && audio.Calls.Last() == "stop r4 100", "a device without a voice key cannot stop prompts -> 401");
+                    await http.SendAsync(VoicePost("stop", deviceId, new { reqId = "r5", fadeMs = int.MaxValue }));
+                    Check(audio.Calls.Last() == "stop r5 2000", "stop fades are capped at 2 s");
+                    var late = await http.SendAsync(VoicePost("play", deviceId, new { reqId = "r4", ids = new[] { a } }));
+                    Check((int)late.StatusCode == 410 && !audio.Calls.Any(c => c.StartsWith("play r4")), "a play the device already gave up on is dropped -> 410");
+
+                    string chime = Crypto.RandomHexId();
+                    var noChime = await http.SendAsync(VoicePost("effect", deviceId, new { id = chime, gain = 1f }));
+                    Check((int)noChime.StatusCode == 409, "an effect the PC lacks -> 409");
+                    await http.SendAsync(VoicePost("clips", deviceId,
+                        new { clips = new[] { new { id = chime, blob = Crypto.Base64Url(VoiceClip.Seal(cacheKey, PcmClip(chime, 16000))) } } }));
+                    var effect = await http.SendAsync(VoicePost("effect", deviceId, new { id = chime, gain = 1f }));
+                    Check(effect.StatusCode == HttpStatusCode.OK && audio.Calls.Last() == "effect 16000", "effect plays on its own channel");
+
+                    await VoiceFxRoutes(http, deviceId, cacheKey, audio);
+
+                    var restarted = new VoiceEndpoints(devices, new VoiceCache(voiceDir), audio);
+                    Check(restarted.Play(deviceId, JsonConvert.SerializeObject(new { ids = new[] { a } })).Status == 401, "after a PC Telemetry restart the key is gone: play -> 401");
+
+                    var newKey = await http.SendAsync(VoicePost("hello", deviceId, hello(Crypto.RandomBytes(32))));
+                    Check(!JObject.Parse(await newKey.Content.ReadAsStringAsync())["ids"].Any(), "a hello with a new key (re-pair) starts an empty cache");
+
+                    devices.Remove(deviceId);
+                    Check(!Directory.Exists(Path.Combine(voiceDir, deviceId)), "removing the device deletes its voice cache");
+
+                    var get = await http.GetAsync("/api/voice/hello");
+                    Check(get.StatusCode == HttpStatusCode.MethodNotAllowed, "GET on a voice route -> 405");
+                }
+            }
+            Directory.Delete(dir, true);
+        }
+
+        static async Task VoiceFxRoutes(HttpClient http, string deviceId, byte[] cacheKey, FakeVoiceAudio audio)
+        {
+            var vectors = FxVectors();
+            int rate = (int)vectors["sampleRate"];
+            var jobs = vectors["jobs"].ToList();
+            var longest = jobs.Where(j => j["sampleRate"] == null).OrderByDescending(j => (int)j["preRollSamples"]).ThenByDescending(j => (int)j["length"]).First();
+            string voice = Crypto.RandomHexId();
+            var sounds = VoiceFxCatalog.Sounds.ToDictionary(s => s, s => Crypto.RandomHexId());
+            string withheld = VoiceFxRenderer.SoundsUsed((string)longest["effect"], longest["values"].ToObject<Dictionary<string, int>>())[0];
+            Func<string, short[], object> upload = (id, pcm) => new { id, blob = Crypto.Base64Url(VoiceClip.Seal(cacheKey, VectorClip(id, pcm, rate))) };
+            var clips = new[] { upload(voice, Unpack((string)vectors["voice"])) }
+                .Concat(VoiceFxCatalog.Sounds.Where(s => s != withheld).Select(s => upload(sounds[s], Unpack((string)vectors["sounds"][s])))).ToArray();
+            await http.SendAsync(VoicePost("clips", deviceId, new { clips }));
+            var voices = new Dictionary<int, string>();
+            var rateSounds = new Dictionary<int, Dictionary<string, string>>();
+            foreach (var r in ((JObject)vectors["rates"]).Properties())
+            {
+                int at = int.Parse(r.Name);
+                var pcm = new Dictionary<string, short[]> { [voices[at] = Crypto.RandomHexId()] = Unpack((string)r.Value["voice"]) };
+                rateSounds[at] = ((JObject)r.Value["sounds"] ?? new JObject()).Properties().ToDictionary(p => p.Name, p => Crypto.RandomHexId());
+                foreach (var p in ((JObject)r.Value["sounds"] ?? new JObject()).Properties())
+                    pcm[rateSounds[at][p.Name]] = Unpack((string)p.Value);
+                await http.SendAsync(VoicePost("clips", deviceId, new { clips = pcm.Select(c => new { id = c.Key,
+                    blob = Crypto.Base64Url(VoiceClip.Seal(cacheKey, VectorClip(c.Key, c.Value, at))) }).ToArray() }));
+            }
+            Func<JToken, object> fxOf = job => new { id = (string)job["effect"], values = job["values"], seed = (uint)job["seed"], sounds };
+            Func<object, int, object> play = (fx, leadInMs) => new { reqId = "fx", ids = new[] { voice }, leadInMs, gain = 1f, fx };
+
+            var lacking = await http.SendAsync(VoicePost("play", deviceId, play(fxOf(longest), 0)));
+            var lackingIds = JObject.Parse(await lacking.Content.ReadAsStringAsync())["ids"].Select(x => (string)x).ToList();
+            Check((int)lacking.StatusCode == 409 && lackingIds.SequenceEqual(new[] { sounds[withheld] }), "fx with a sound the PC lacks -> 409 listing that sound's clip id");
+            await http.SendAsync(VoicePost("clips", deviceId, new { clips = new[] { upload(sounds[withheld], Unpack((string)vectors["sounds"][withheld])) } }));
+
+            var dry = await http.SendAsync(VoicePost("play", deviceId, play(null, 0)));
+            int dryLength = audio.LastPrompt.Length;
+            Check(dry.StatusCode == HttpStatusCode.OK && audio.LastPrompt.SequenceEqual(Unpack((string)vectors["voice"])), "play without fx is the dry voice, sample for sample");
+
+            int worst = 0;
+            var wrong = new List<string>();
+            foreach (var job in jobs)
+            {
+                int? jobRate = (int?)job["sampleRate"];
+                var reply = await http.SendAsync(VoicePost("play", deviceId, jobRate == null ? play(fxOf(job), 0)
+                    : new { reqId = "fx", ids = new[] { voices[jobRate.Value] }, leadInMs = 0, gain = 1f,
+                        fx = new { id = (string)job["effect"], values = job["values"], seed = (uint)job["seed"], sounds = rateSounds[jobRate.Value] } }));
+                int error = reply.StatusCode == HttpStatusCode.OK ? MaxError(Unpack((string)job["pcm16"]), audio.LastPrompt) : int.MaxValue;
+                worst = Math.Max(worst, error);
+                if (error > 1)
+                    wrong.Add((string)job["name"]);
+            }
+            Check(wrong.Count == 0, "every vector job through the play route matches the app (" + jobs.Count + " jobs, max error " + worst + " LSB)"
+                + (wrong.Count == 0 ? "" : ": " + string.Join(", ", wrong)));
+
+            await http.SendAsync(VoicePost("play", deviceId, play(fxOf(longest), 0)));
+            var wetPcm = audio.LastPrompt;
+            Check(wetPcm.Length > dryLength && (int)longest["preRollSamples"] > 0, longest["name"] + " renders longer than dry (" + wetPcm.Length + " vs " + dryLength
+                + " samples) with a pre-roll of " + longest["preRollSamples"]);
+            var lead = await http.SendAsync(VoicePost("play", deviceId, play(fxOf(longest), 120)));
+            var leadPcm = audio.LastPrompt;
+            int leadIn = rate * 120 / 1000;
+            Check(leadPcm.Length == leadIn + wetPcm.Length && leadPcm.Take(leadIn).All(x => x == 0) && leadPcm.Skip(leadIn).SequenceEqual(wetPcm)
+                && (int)JObject.Parse(await lead.Content.ReadAsStringAsync())["durationMs"] == leadPcm.Length * 1000 / rate,
+                "lead-in is silence in front of the pre-roll; durationMs covers lead-in, pre-roll and tail");
+
+            var effect = VoiceFxCatalog.All[0];
+            Func<object, Task<int>> status = async fx => (int)(await http.SendAsync(VoicePost("play", deviceId, play(fx, 0)))).StatusCode;
+            Check(await status(new { id = "not_an_effect", seed = 1, sounds }) == 400, "unknown effect -> 400");
+            Check(await status(new { id = effect.Id, sounds }) == 400, "fx without a seed -> 400");
+            Check(await status(new { id = effect.Id, seed = 1, values = new JObject { ["in"] = 1 },
+                    sounds = sounds.Where(kv => kv.Key != VoiceFxCatalog.RadioIn[1]).ToDictionary(kv => kv.Key, kv => kv.Value) }) == 400,
+                "fx without a sound it plays -> 400");
+            Check(await status(new { id = effect.Id, seed = 1, sounds, values = new JObject { [effect.Params[0].Id] = 50.5 } }) == 400, "a fractional value -> 400");
+            Check(await status(new { id = effect.Id, seed = -1, sounds }) == 400, "a negative seed -> 400");
+            Check(await status(effect.Id) == 400, "fx that is not an object -> 400");
         }
 
         static int FreePort()

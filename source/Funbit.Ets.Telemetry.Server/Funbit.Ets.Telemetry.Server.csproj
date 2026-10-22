@@ -62,6 +62,9 @@
   <ItemGroup>
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageReference Include="log4net" Version="3.3.2" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <PackageReference Include="NLayer" Version="3.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.31" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="8.0.31" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -122,6 +125,7 @@
   <ItemGroup>
     <Compile Include="Controllers\TelemetryEndpoints.cs" />
     <Compile Include="Controllers\GameProfileEndpoints.cs" />
+    <Compile Include="Controllers\VoiceEndpoints.cs" />
     <!-- New SCS SDK reader + V1 models -->
     <Compile Include="Data\ScsTelemetryDataReader.cs" />
     <Compile Include="Data\TelemetryV1.cs" />
@@ -161,6 +165,15 @@
     <Compile Include="Services\RelayTunnelClient.cs" />
     <Compile Include="Services\ThroughputMeter.cs" />
     <Compile Include="Services\TunnelCodec.cs" />
+    <Compile Include="Services\VoiceAudio.cs" />
+    <Compile Include="Services\VoiceCache.cs" />
+    <Compile Include="Services\VoiceClip.cs" />
+    <Compile Include="Services\VoiceDecoder.cs" />
+    <Compile Include="Services\VoiceFx\VoiceFxCatalog.cs" />
+    <Compile Include="Services\VoiceFx\VoiceFxDsp.cs" />
+    <Compile Include="Services\VoiceFx\VoiceFxPitch.cs" />
+    <Compile Include="Services\VoiceFx\VoiceFxPsola.cs" />
+    <Compile Include="Services\VoiceFx\VoiceFxRenderer.cs" />
     <Compile Include="SetupForm.cs">
       <SubType>Form</SubType>
     </Compile>

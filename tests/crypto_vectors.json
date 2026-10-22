@@ -49,6 +49,16 @@
       "length": 128,
       "okm": "5a9e1b302df5f58bdfbfb7c5c989ca8ddac2279dd3b95fe965e1f56d909917704328b759cc0dfbece25ff1254d2409c1f2f2e340f7b98815b0b2cf9ff7dd9f102e5fc6ded725717e4376fa147b9694de10ba5394c240c1b9f43a72f723a16f56fd63d8ded33efae707ea549805317d008350fcd2df43458e5e8814a9813f7c54",
       "note": "ikm = deviceKey (or pairing secret S during relay pairing); salt = nonceA || nonceB; okm[0..32] = k_app2pc, [32..64] = k_pc2app, [64..96] = spare_app2pc, [96..128] = spare_pc2app"
+    },
+    {
+      "name": "voice_hello_key",
+      "ikm": "10171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9",
+      "salt": "",
+      "info": "tsgps-voice-v1",
+      "infoHex": "74736770732d766f6963652d7631",
+      "length": 32,
+      "okm": "7b6195ca1aed44b064a7b6b7da1a54685ff9e0aad392256b41ced28b1770f0e3",
+      "note": "ikm = deviceKey; salt empty; seals the voice hello envelope (POST /api/voice/hello)"
     }
   ],
   "aesGcm": [

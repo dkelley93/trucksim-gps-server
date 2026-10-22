@@ -59,6 +59,7 @@ Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\dev"
 Type: filesandordirs; Name: "{app}\docs"
 Type: filesandordirs; Name: "{localappdata}\TruckSim GPS\logs"
+Type: filesandordirs; Name: "{localappdata}\TruckSim GPS\voice"
 
 [Code]
 function IsSilentInstall: Boolean;

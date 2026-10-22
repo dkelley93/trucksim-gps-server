@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
+using Funbit.Ets.Telemetry.Server.Controllers;
 using Funbit.Ets.Telemetry.Server.Data;
 using Funbit.Ets.Telemetry.Server.Helpers;
 using Funbit.Ets.Telemetry.Server.Services;
@@ -46,6 +47,8 @@ namespace Funbit.Ets.Telemetry.Server
         PairingSessionService _pairing;
         PresenceClient _presence;
         MinimalHttpServer _server;
+        readonly WaveOutVoiceAudio _voiceAudio = new WaveOutVoiceAudio();
+        VoiceEndpoints _voice;
         string _serverError;
         bool _hasCheckedForUpdates;
         bool _startedMinimized;
@@ -447,6 +450,7 @@ namespace Funbit.Ets.Telemetry.Server
                 _interfaces.SelectedIndex = Math.Max(0, remembered);
 
                 _devices = new LinkedDeviceStore(_settings);
+                _voice = new VoiceEndpoints(_devices, new VoiceCache(VoiceCache.DefaultRoot), _voiceAudio);
                 _presence = new PresenceClient(CloudConfig.ApiBaseUrl, _settings, _devices, _pairing, ConnectCandidates, CloudConfig.Port);
                 StartServer();
 
@@ -474,7 +478,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             try
             {
-                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices);
+                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices, _voice);
                 _server.Start();
                 _serverError = null;
             }
@@ -527,6 +531,7 @@ namespace Funbit.Ets.Telemetry.Server
                 _pairing?.Cancel();
                 _presence?.Dispose();
                 _server?.Dispose();
+                _voiceAudio.Dispose();
                 trayIcon.Visible = false;
                 Log.Info("Server stopped successfully");
             }

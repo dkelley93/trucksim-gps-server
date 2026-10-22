@@ -24,6 +24,7 @@ namespace Funbit.Ets.Telemetry.Server
         private readonly int _port;
         private readonly PairingSessionService _pairing;
         private readonly LinkedDeviceStore _devices;
+        private readonly VoiceEndpoints _voice;
         private TcpListener _listener;
         private CancellationTokenSource _cancellationTokenSource;
         private Task _listenerTask;
@@ -38,12 +39,15 @@ namespace Funbit.Ets.Telemetry.Server
         // Cap on POST body size. Pair/auth endpoints take tiny JSON; this prevents memory
         // pressure from a malformed or hostile Content-Length.
         const int MaxBodyBytes = 64 * 1024;
+        const int MaxVoiceBodyBytes = 4 * 1024 * 1024;
+        const string VoicePathPrefix = "/api/voice/";
 
-        public MinimalHttpServer(int port, PairingSessionService pairing, LinkedDeviceStore devices)
+        public MinimalHttpServer(int port, PairingSessionService pairing, LinkedDeviceStore devices, VoiceEndpoints voice)
         {
             _port = port;
             _pairing = pairing;
             _devices = devices;
+            _voice = voice;
         }
 
         public void Start()
@@ -82,6 +86,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Info("  - POST /api/pair/complete     (QR/code pairing completion)");
                     Log.Info("  - POST /api/pair/complete-lan (Manual-IP pairing completion)");
                     Log.Info("  - POST /api/pair/unlink       (Device leaves the linked list)");
+                    Log.Info("  - POST /api/voice/hello|clips|play|effect|stop (Voice prompts on this PC)");
                 }
                 catch (Exception ex)
                 {
@@ -266,9 +271,10 @@ namespace Funbit.Ets.Telemetry.Server
             int contentLength = GetContentLength(headers);
             if (contentLength > 0)
             {
-                if (contentLength > MaxBodyBytes)
+                int maxBody = requestLine[1].StartsWith(VoicePathPrefix, StringComparison.Ordinal) ? MaxVoiceBodyBytes : MaxBodyBytes;
+                if (contentLength > maxBody)
                 {
-                    Log.WarnFormat("Request body Content-Length {0} exceeds cap {1}; rejecting", contentLength, MaxBodyBytes);
+                    Log.WarnFormat("Request body Content-Length {0} exceeds cap {1}; rejecting", contentLength, maxBody);
                     return null;
                 }
 
@@ -381,6 +387,7 @@ namespace Funbit.Ets.Telemetry.Server
             else if (path == "/api/pair/complete") response = HandlePairComplete(request);
             else if (path == "/api/pair/complete-lan") response = HandlePairCompleteLan(request);
             else if (path == "/api/pair/unlink") response = HandlePairUnlink(request);
+            else if (path.StartsWith(VoicePathPrefix, StringComparison.Ordinal)) response = HandleVoice(request, path, deviceId);
             else
             {
                 return new HttpResponse
@@ -643,6 +650,37 @@ namespace Funbit.Ets.Telemetry.Server
                 return JsonResponse(new { error = "not_linked" }, 404, "Not Found");
             Log.InfoFormat("Device {0} unlinked itself", req.DeviceId);
             return JsonResponse(new { });
+        }
+
+        private HttpResponse HandleVoice(HttpRequest request, string path, string deviceId)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+            VoiceReply reply;
+            switch (path.Substring(VoicePathPrefix.Length))
+            {
+                case "hello": reply = _voice.Hello(deviceId, request.Body); break;
+                case "play": reply = _voice.Play(deviceId, request.Body); break;
+                case "effect": reply = _voice.Effect(deviceId, request.Body); break;
+                case "clips": reply = _voice.Clips(deviceId, request.Body); break;
+                case "stop": reply = _voice.Stop(deviceId, request.Body); break;
+                default:
+                    return new HttpResponse { StatusCode = 404, StatusText = "Not Found", ContentType = "text/plain", Body = "404 Not Found" };
+            }
+            return JsonResponse(reply.Body, reply.Status, StatusText(reply.Status));
+        }
+
+        static string StatusText(int status)
+        {
+            switch (status)
+            {
+                case 200: return "OK";
+                case 400: return "Bad Request";
+                case 401: return "Unauthorized";
+                case 403: return "Forbidden";
+                case 409: return "Conflict";
+                case 410: return "Gone";
+                default: return "Service Unavailable";
+            }
         }
 
         static T TryDeserializeBody<T>(HttpRequest request) where T : class
