@@ -7,6 +7,7 @@
   "devices.last_seen": "naposledy {0}",
   "devices.relay_tooltip": "Toto zařízení se nemohlo připojit k PC přímo, takže telemetrie jde přes zabezpečené internetové připojení přes náš Relay Server. Funguje to, jen s trochu větším zpožděním. {0} ukazuje, jak nastavit přímé připojení.",
   "devices.remove": "Odebrat",
+  "devices.throughput": "{0} KB/s ↑ {1} KB/s ↓",
   "devices.title": "Propojená zařízení",
   "devices.unnamed": "Nepojmenované zařízení",
   "language.system": "Výchozí systému",

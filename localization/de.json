@@ -7,6 +7,7 @@
   "devices.last_seen": "zuletzt gesehen {0}",
   "devices.relay_tooltip": "Dieses Gerät konnte den PC nicht direkt erreichen, daher läuft die Telemetrie über eine sichere Internetverbindung durch unseren Relay Server. Funktioniert, nur mit etwas mehr Verzögerung. {0} zeigt, wie du eine direkte Verbindung bekommst.",
   "devices.remove": "Entfernen",
+  "devices.throughput": "{0} KB/s ↑ {1} KB/s ↓",
   "devices.title": "Verknüpfte Geräte",
   "devices.unnamed": "Unbenanntes Gerät",
   "language.system": "Systemsprache",

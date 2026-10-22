@@ -7,6 +7,7 @@
   "devices.last_seen": "ostatnio widziano {0}",
   "devices.relay_tooltip": "To urządzenie nie mogło połączyć się z PC bezpośrednio, więc jego telemetria przechodzi przez bezpieczne połączenie internetowe przez nasz Relay Server. Działa, choć z niewielkim opóźnieniem. {0} pokazuje, jak uzyskać bezpośrednie połączenie.",
   "devices.remove": "Usuń",
+  "devices.throughput": "{0} KB/s ↑ {1} KB/s ↓",
   "devices.title": "Połączone urządzenia",
   "devices.unnamed": "Urządzenie bez nazwy",
   "language.system": "Domyślny systemowy",

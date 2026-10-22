@@ -39,8 +39,12 @@ namespace Funbit.Ets.Telemetry.Server.Services
         HubConnection _hub;
         Timer _peerTimer;
         int _closed;
+        long _bytesSent, _bytesReceived;
 
         public string DeviceId { get; }
+        public ThroughputMeter Throughput { get; } = new ThroughputMeter();
+        public long BytesSent => Interlocked.Read(ref _bytesSent);
+        public long BytesReceived => Interlocked.Read(ref _bytesReceived);
         public event Action<RelayTunnelClient> Closed;
 
         public RelayTunnelClient(string relayUrl, string ticket, byte[] keyAppToPc, byte[] keyPcToApp, int loopbackPort, string deviceId)
@@ -89,6 +93,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
 
         void OnRecv(byte[] wire)
         {
+            Interlocked.Add(ref _bytesReceived, wire.Length);
             byte[] frame;
             try
             {
@@ -201,7 +206,10 @@ namespace Funbit.Ets.Telemetry.Server.Services
             try
             {
                 foreach (var wire in _outbound.GetConsumingEnumerable(_cts.Token))
+                {
                     await _hub.SendAsync("Send", wire, _cts.Token);
+                    Interlocked.Add(ref _bytesSent, wire.Length);
+                }
             }
             catch (Exception ex)
             {

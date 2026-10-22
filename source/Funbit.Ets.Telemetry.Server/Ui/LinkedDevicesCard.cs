@@ -45,7 +45,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             _count.Location = new Point(Width - 16 - _count.Width, 16);
         }
 
-        public void Update(List<LinkedDevice> devices)
+        public void Update(List<LinkedDevice> devices, IReadOnlyDictionary<string, ThroughputMeter> throughput)
         {
             _count.Text = L.Get("devices.count", devices.Count);
             _count.Location = new Point(Width - 16 - _count.Width, 16);
@@ -58,7 +58,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             if (sameRows)
             {
                 for (int i = 0; i < devices.Count; i++)
-                    _rows[i].Update(devices[i]);
+                    _rows[i].Update(devices[i], Meter(throughput, devices[i]));
                 return;
             }
 
@@ -73,13 +73,24 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             foreach (var device in devices)
             {
                 var row = new DeviceRow(device.DeviceId, rowWidth, _tooltip, () => RemoveRequested?.Invoke(device.DeviceId));
-                row.Update(device);
+                row.Update(device, Meter(throughput, device));
                 row.Location = new Point(0, y);
                 _rows.Add(row);
                 _list.Controls.Add(row);
                 y += RowHeight + RowGap;
             }
             _list.ResumeLayout();
+        }
+
+        static ThroughputMeter Meter(IReadOnlyDictionary<string, ThroughputMeter> throughput, LinkedDevice device)
+        {
+            ThroughputMeter meter;
+            return throughput.TryGetValue(device.DeviceId, out meter) ? meter : null;
+        }
+
+        static string Rate(double bytesPerSecond)
+        {
+            return (bytesPerSecond / 1024).ToString("0.0");
         }
 
         static string RelativeTime(DateTime utc)
@@ -111,6 +122,7 @@ namespace Funbit.Ets.Telemetry.Server.Ui
             readonly InfoIcon _info = new InfoIcon { ForeColor = DarkTheme.Amber, Size = new Size(14, 14), BackColor = DarkTheme.Row, Visible = false };
             readonly TooltipPanel _tooltip;
             LinkedDevice _device;
+            ThroughputMeter _meter;
             bool _connected, _relay;
 
             public DeviceRow(string deviceId, int width, TooltipPanel tooltip, Action remove)
@@ -132,22 +144,25 @@ namespace Funbit.Ets.Telemetry.Server.Ui
                 _remove.Text = L.Get("devices.remove");
                 _remove.Location = new Point(Width - 10 - _remove.Width, (RowHeight - 22) / 2);
                 if (_device != null)
-                    Refresh(_device, true);
+                    Refresh(_device, _meter, true);
             }
 
-            public void Update(LinkedDevice device)
+            public void Update(LinkedDevice device, ThroughputMeter meter)
             {
-                Refresh(device, false);
+                Refresh(device, meter, false);
             }
 
-            void Refresh(LinkedDevice device, bool force)
+            void Refresh(LinkedDevice device, ThroughputMeter meter, bool force)
             {
                 _device = device;
+                _meter = meter;
                 bool connected = LinkedDeviceStore.IsConnected(device);
                 bool relay = connected && device.LastMethod == ConnectionMethod.Relay;
                 string status = connected
                     ? L.Get(relay ? "devices.connected_relay" : "devices.connected_direct")
                     : L.Get("devices.last_seen", RelativeTime(device.LastSeenAt));
+                if (relay && meter != null)
+                    status += " · " + L.Get("devices.throughput", Rate(meter.UpBytesPerSecond), Rate(meter.DownBytesPerSecond));
                 string name = device.Name ?? L.Get("devices.unnamed");
                 if (!force && connected == _connected && relay == _relay && status == _status.Text && name == _name.Text)
                     return;

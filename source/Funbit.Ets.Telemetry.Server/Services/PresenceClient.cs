@@ -65,6 +65,21 @@ namespace Funbit.Ets.Telemetry.Server.Services
 
         public bool IsConnected => _hub?.State == HubConnectionState.Connected;
 
+        public Dictionary<string, ThroughputMeter> SampleThroughput()
+        {
+            RelayTunnelClient[] tunnels;
+            lock (_tunnels)
+                tunnels = _tunnels.ToArray();
+            var now = DateTime.UtcNow;
+            var result = new Dictionary<string, ThroughputMeter>();
+            foreach (var tunnel in tunnels)
+            {
+                tunnel.Throughput.Sample(tunnel.BytesSent, tunnel.BytesReceived, now);
+                result[tunnel.DeviceId] = tunnel.Throughput;
+            }
+            return result;
+        }
+
 #if DEBUG
         public void UseApi(string apiBaseUrl)
         {

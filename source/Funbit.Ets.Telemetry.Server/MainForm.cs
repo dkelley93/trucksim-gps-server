@@ -592,7 +592,7 @@ namespace Funbit.Ets.Telemetry.Server
 
         void RefreshDevices()
         {
-            _devicesCard.Update(_devices.Sorted());
+            _devicesCard.Update(_devices.Sorted(), _presence.SampleThroughput());
         }
 
         void UpdateStatus()

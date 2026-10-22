@@ -7,6 +7,7 @@
   "devices.last_seen": "laatst gezien {0}",
   "devices.relay_tooltip": "Dit apparaat kon de pc niet rechtstreeks bereiken, dus loopt de telemetrie via een beveiligde internetverbinding over onze Relay Server. Het werkt, met iets meer vertraging. {0} laat zien hoe je een directe verbinding krijgt.",
   "devices.remove": "Verwijderen",
+  "devices.throughput": "{0} kB/s ↑ {1} kB/s ↓",
   "devices.title": "Gekoppelde apparaten",
   "devices.unnamed": "Naamloos apparaat",
   "language.system": "Systeemstandaard",

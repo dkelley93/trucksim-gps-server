@@ -7,6 +7,7 @@
   "devices.last_seen": "son görülme {0}",
   "devices.relay_tooltip": "Bu cihaz PC'ye doğrudan ulaşamadı, bu yüzden telemetrisi Relay Server üzerinden güvenli bir internet bağlantısıyla iletiliyor. Çalışıyor, sadece biraz daha gecikmeli. {0} doğrudan bağlantının nasıl kurulacağını gösterir.",
   "devices.remove": "Kaldır",
+  "devices.throughput": "{0} KB/s ↑ {1} KB/s ↓",
   "devices.title": "Bağlı cihazlar",
   "devices.unnamed": "İsimsiz cihaz",
   "language.system": "Sistem varsayılanı",

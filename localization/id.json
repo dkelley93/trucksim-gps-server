@@ -7,6 +7,7 @@
   "devices.last_seen": "terakhir terlihat {0}",
   "devices.relay_tooltip": "Perangkat ini tidak bisa menjangkau PC secara langsung, jadi telemetrinya dikirim lewat koneksi internet aman melalui Relay Server kami. Tetap berfungsi, hanya sedikit lebih lambat. {0} menunjukkan cara mendapat koneksi langsung.",
   "devices.remove": "Hapus",
+  "devices.throughput": "{0} KB/dtk ↑ {1} KB/dtk ↓",
   "devices.title": "Perangkat tertaut",
   "devices.unnamed": "Perangkat tanpa nama",
   "language.system": "Default sistem",

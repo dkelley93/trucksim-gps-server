@@ -7,6 +7,7 @@
   "devices.last_seen": "vu {0}",
   "devices.relay_tooltip": "Cet appareil n'a pas pu joindre le PC directement, ses données passent donc par une connexion internet sécurisée via notre Relay Server. Cela fonctionne, avec un peu plus de délai. {0} explique comment obtenir une connexion directe.",
   "devices.remove": "Retirer",
+  "devices.throughput": "{0} Ko/s ↑ {1} Ko/s ↓",
   "devices.title": "Appareils associés",
   "devices.unnamed": "Appareil sans nom",
   "language.system": "Langue du système",

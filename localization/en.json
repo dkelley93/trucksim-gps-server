@@ -31,6 +31,10 @@
     "text": "Remove",
     "context": "Small button on each row of the Linked devices list that unlinks that mobile device from this PC. Keep very short."
   },
+  "devices.throughput": {
+    "text": "{0} KB/s ↑ {1} KB/s ↓",
+    "context": "Live data rate appended to 'connected · Relay Server' on a Linked devices row: {0} = kilobytes per second sent to the device, {1} = received from it, both already formatted numbers like 0.9. Keep the arrows; translate only the unit if your language writes kilobytes per second differently."
+  },
   "devices.title": {
     "text": "Linked devices",
     "context": "Title of the card listing the mobile devices linked to this PC."

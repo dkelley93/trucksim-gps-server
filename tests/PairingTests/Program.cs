@@ -27,6 +27,7 @@ namespace PairingTests
             Run("pairing session", () => PairingSession().GetAwaiter().GetResult());
             Run("http routes", () => HttpRoutes().GetAwaiter().GetResult());
             Run("handshake", Handshake);
+            Run("throughput meter", ThroughputMeter);
 
             Console.WriteLine(_failures == 0 ? "ALL PASSED" : $"FAILED ({_failures})");
             return _failures == 0 ? 0 : 1;
@@ -51,6 +52,26 @@ namespace PairingTests
             Console.WriteLine($"  [{(condition ? "PASS" : "FAIL")}] {what}");
             if (!condition)
                 _failures++;
+        }
+
+        static void ThroughputMeter()
+        {
+            var meter = new ThroughputMeter();
+            var t0 = new DateTime(2026, 9, 10, 12, 0, 0, DateTimeKind.Utc);
+            meter.Sample(0, 0, t0);
+            Check(meter.UpBytesPerSecond == 0 && meter.DownBytesPerSecond == 0, "single sample reads zero");
+            meter.Sample(2048, 512, t0.AddSeconds(1));
+            Check(meter.UpBytesPerSecond == 2048 && meter.DownBytesPerSecond == 512, "two samples one second apart give bytes per second");
+            for (int i = 2; i <= 5; i++)
+                meter.Sample(2048L * i, 512L * i, t0.AddSeconds(i));
+            Check(meter.UpBytesPerSecond == 2048 && meter.DownBytesPerSecond == 512, "steady stream over the full 5 s window");
+            meter.Sample(2048L * 5, 512L * 5, t0.AddSeconds(6));
+            Check(Math.Abs(meter.UpBytesPerSecond - 2048 * 4 / 5.0) < 0.001, "oldest sample drops out once it is older than 5 s: " + meter.UpBytesPerSecond);
+            for (int i = 7; i <= 12; i++)
+                meter.Sample(2048L * 5, 512L * 5, t0.AddSeconds(i));
+            Check(meter.UpBytesPerSecond == 0 && meter.DownBytesPerSecond == 0, "idle tunnel decays to zero within the window");
+            meter.Sample(2048L * 5 + 100, 512L * 5, t0.AddSeconds(12));
+            Check(meter.UpBytesPerSecond == 20 && meter.DownBytesPerSecond == 0, "a second sample at the same tick keeps the window span");
         }
 
         static void CryptoVectors()
