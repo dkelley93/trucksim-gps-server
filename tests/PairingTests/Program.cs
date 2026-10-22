@@ -32,6 +32,10 @@ namespace PairingTests
             Run("http routes", () => HttpRoutes().GetAwaiter().GetResult());
             Run("handshake", Handshake);
             Run("throughput meter", ThroughputMeter);
+            Run("relay selection", () => RelaySelection().GetAwaiter().GetResult());
+            Run("reconnect jitter", ReconnectJitter);
+            Run("parking rules", ParkingRulesTable);
+            Run("standby line", () => StandbyLine().GetAwaiter().GetResult());
             Run("voice clips and cache", VoiceClipsAndCache);
             Run("voice decoder", VoiceDecode);
             Run("voice fx vectors", VoiceFxVectors);
@@ -60,6 +64,265 @@ namespace PairingTests
             Console.WriteLine($"  [{(condition ? "PASS" : "FAIL")}] {what}");
             if (!condition)
                 _failures++;
+        }
+
+        static async Task RelaySelection()
+        {
+            using (var good = new FakeApi((m, p, b) => Tuple.Create(200, "{}")))
+            using (var spare = new FakeApi((m, p, b) => Tuple.Create(200, "{}")))
+            using (var originDown = new FakeApi((m, p, b) => Tuple.Create(521, "error code: 521")))
+            using (var http = new HttpClient())
+            {
+                string dead = "http://127.0.0.1:1";
+                string listing = JsonConvert.SerializeObject(new[] { good.BaseUrl, spare.BaseUrl, originDown.BaseUrl, dead }
+                    .Select(u => new { url = u + "/", region = "eu" }));
+                using (var api = new FakeApi((m, p, b) => p == "/api/relays" ? Tuple.Create(200, listing) : Tuple.Create(404, "{}")))
+                {
+                    string best = await RelaySelector.MeasureAsync(http, api.BaseUrl, new HashSet<string> { spare.BaseUrl });
+                    Check(best == good.BaseUrl, "excluded relay skipped, Cloudflare 52x and refused connection are not live: " + best);
+                    Check(originDown.Requests.Count == 1, "a relay that failed a ping gets no more probes: " + originDown.Requests.Count);
+                    Check(good.Requests.Count == 3, "a live relay gets three probes");
+
+                    best = await RelaySelector.MeasureAsync(http, api.BaseUrl, new HashSet<string> { good.BaseUrl, spare.BaseUrl, originDown.BaseUrl, dead });
+                    Check(best == good.BaseUrl || best == spare.BaseUrl, "every relay excluded: measure them all rather than hand out none: " + best);
+
+                    Check(await RelaySelector.PingAsync(http, good.BaseUrl), "ping: 200 is alive");
+                    Check(!await RelaySelector.PingAsync(http, originDown.BaseUrl), "ping: 521 from the CDN is not");
+                }
+            }
+        }
+
+        static void ReconnectJitter()
+        {
+            var first = Enumerable.Range(0, 200).Select(_ => PresenceClient.ReconnectDelay(0).TotalSeconds).ToList();
+            Check(first.All(s => s >= 0.5 && s <= 1.5), "first reconnect within 0.5-1.5 s");
+            Check(first.Max() - first.Min() > 0.5, "first reconnects spread out: " + first.Min().ToString("F2") + "-" + first.Max().ToString("F2"));
+
+            var late = Enumerable.Range(0, 200).Select(_ => PresenceClient.ReconnectDelay(42).TotalSeconds).ToList();
+            Check(late.All(s => s >= 30 && s <= 90), "later reconnects stay 60 s +/-50%");
+
+            var backoff = Enumerable.Range(0, 200).Select(_ => PresenceClient.Jittered(300).TotalSeconds).ToList();
+            Check(backoff.All(s => s >= 150 && s <= 450) && backoff.Max() - backoff.Min() > 100, "registration backoff 300 s +/-50%");
+        }
+
+        static void ParkingRulesTable()
+        {
+            var t0 = new DateTime(2026, 10, 15, 12, 0, 0, DateTimeKind.Utc);
+            var policy = new StandbyPolicy();
+            var rules = new ParkingRules();
+            Check(!rules.Update(false, WindowPresence.Hidden, policy, t0), "no game, window hidden: not parked");
+            Check(rules.Update(true, WindowPresence.Hidden, policy, t0), "game running, window in the tray: parked");
+            Check(rules.Update(false, WindowPresence.Hidden, policy, t0.AddMinutes(1)), "game just closed, window in the tray: parked during the grace");
+            Check(rules.Update(false, WindowPresence.Hidden, policy, t0.AddMinutes(10.9)), "still inside the 10 min grace");
+            Check(!rules.Update(false, WindowPresence.Hidden, policy, t0.AddMinutes(11.1)), "unparked once the grace is over");
+
+            rules = new ParkingRules();
+            Check(rules.Update(false, WindowPresence.Front, policy, t0), "no game, window in front: parked");
+            Check(rules.Update(false, WindowPresence.Background, policy, t0.AddMinutes(1)), "window loses focus: parked during the grace");
+            Check(!rules.Update(false, WindowPresence.Background, policy, t0.AddMinutes(11.1)), "unparked once the grace is over");
+            Check(rules.Update(false, WindowPresence.Front, policy, t0.AddMinutes(12)), "focused again: parked");
+            Check(!rules.Update(false, WindowPresence.Hidden, policy, t0.AddMinutes(12.1)), "minimized with the game closed: unparked at once");
+
+            rules = new ParkingRules();
+            rules.Update(true, WindowPresence.Front, policy, t0);
+            Check(rules.Update(false, WindowPresence.Front, policy, t0.AddMinutes(1)), "game closed, window in front: parked");
+            Check(!rules.Update(false, WindowPresence.Hidden, policy, t0.AddMinutes(2)), "then minimized: unparked at once, the game's grace too");
+
+            var gameOnly = new StandbyPolicy { ParkWithoutGame = false, GraceMinutes = 3 };
+            rules = new ParkingRules();
+            Check(!rules.Update(false, WindowPresence.Front, gameOnly, t0), "park without the game off: window in front alone does not park");
+            Check(!rules.Update(false, WindowPresence.Background, gameOnly, t0.AddSeconds(1)), "and losing focus starts no grace");
+            Check(rules.Update(true, WindowPresence.Background, gameOnly, t0.AddMinutes(1)), "the game still parks");
+            Check(rules.Update(false, WindowPresence.Background, gameOnly, t0.AddMinutes(2)), "game closed: parked during the policy's grace");
+            Check(rules.Update(false, WindowPresence.Background, gameOnly, t0.AddMinutes(4.9)), "which is 3 min");
+            Check(!rules.Update(false, WindowPresence.Background, gameOnly, t0.AddMinutes(5.1)), "then unparked");
+        }
+
+        static async Task StandbyLine()
+        {
+            using (var full = new FakeRelay { Full = true })
+            using (var relay = new FakeRelay())
+            {
+                var settings = StandbySettings();
+                var handshakes = new List<StandbyHandshake>();
+                using (var client = new StandbyClient(settings, () => Task.FromResult<IReadOnlyList<string>>(new[] { full.Url, relay.Url }),
+                    h => { lock (handshakes) handshakes.Add(h); return Task.CompletedTask; }, TimeSpan.FromSeconds(4), _ => TimeSpan.FromMilliseconds(300)))
+                {
+                    client.Update(true, false, WindowPresence.Front);
+                    Check(await Until(() => client.IsParked && client.ParkedRelay == relay.Url), "a full relay (4003) is skipped for the next one");
+                    Check(full.Connects == 1 && relay.Authorization == "Bearer token-1", "parks with the token in Authorization");
+
+                    await relay.Send("ping");
+                    Check(await Until(() => { lock (relay.Received) return relay.Received.Contains("pong"); }), "answers the relay's ping");
+
+                    await relay.Send("{\"t\":\"handshake\",\"sessionId\":\"s1\",\"deviceId\":\"d1\",\"nonceA\":\"n\",\"env\":\"e\",\"pcTicket\":\"p\",\"standbyToken\":\"token-2\"}");
+                    Check(await Until(() => { lock (handshakes) return handshakes.Count == 1; }), "a ring reaches the handshake path");
+                    Check(await client.SendReply("s1", true, "envR", "https://relay") && await Until(() => { lock (relay.Received) return relay.Received.Any(f => f.Contains("\"reply\"") && f.Contains("\"s1\"")); }),
+                        "the reply goes back on the same socket");
+
+                    client.Update(true, false, WindowPresence.Hidden);
+                    Check(await Until(() => !client.IsParked && relay.Closed), "minimized with no game: unparks at once");
+                    client.Update(true, false, WindowPresence.Front);
+                    Check(await Until(() => client.IsParked && relay.Connects == 2), "back in front: parks again at once");
+
+                    await relay.CloseCurrent(4001);
+                    await Task.Delay(1000);
+                    Check(!client.IsParked && relay.Connects == 2, "4001 replaced: no reconnect on its own");
+                    client.Update(true, false, WindowPresence.Hidden);
+                    client.Update(true, false, WindowPresence.Front);
+                    Check(await Until(() => client.IsParked && relay.Connects == 3), "the next time the window comes to the front it parks again");
+
+                    await relay.CloseCurrent(1001);
+                    Check(await Until(() => client.IsParked && relay.Connects == 4), "a drop reconnects after the backoff");
+
+                    await Task.Delay(5000);
+                    Check(await Until(() => client.IsParked && relay.Connects == 5), "a line silent past the limit is replaced");
+
+                    await relay.Send("{\"t\":\"policy\",\"parkWithoutGame\":false,\"graceMinutes\":3}");
+                    Check(await Until(() => !settings.StandbyPolicy.ParkWithoutGame && settings.StandbyPolicy.GraceMinutes == 3), "a policy frame updates the settings");
+                    Check(await Until(() => { var saved = Settings.Load(settings.FilePath).StandbyPolicy; return !saved.ParkWithoutGame && saved.GraceMinutes == 3; }), "and it is saved");
+                    Check(await Until(() => !client.IsParked), "park without the game off: the window alone no longer holds the line");
+                }
+            }
+
+            using (var wrongKey = new FakeRelay { RefuseWith = 401 })
+            using (var relay = new FakeRelay())
+            {
+                var settings = StandbySettings();
+                using (var client = new StandbyClient(settings, () => Task.FromResult<IReadOnlyList<string>>(new[] { wrongKey.Url, relay.Url }), _ => Task.CompletedTask,
+                    TimeSpan.FromSeconds(4), _ => TimeSpan.FromMilliseconds(300)))
+                {
+                    client.Update(true, true, WindowPresence.Hidden);
+                    Check(await Until(() => client.IsParked && client.ParkedRelay == relay.Url) && settings.StandbyToken == "token-1",
+                        "one relay's 401 does not drop the token: the next relay takes it");
+                }
+            }
+
+            using (var relay = new FakeRelay { RefuseWith = 401 })
+            {
+                var settings = StandbySettings();
+                using (var client = new StandbyClient(settings, () => Task.FromResult<IReadOnlyList<string>>(new[] { relay.Url }), _ => Task.CompletedTask,
+                    TimeSpan.FromSeconds(2), _ => TimeSpan.FromMilliseconds(300)))
+                {
+                    client.Update(true, true, WindowPresence.Hidden);
+                    Check(await Until(() => settings.StandbyToken == null), "401 drops the token");
+                    await Task.Delay(1000);
+                    Check(relay.Connects == 1, "401: no retry without a token");
+                }
+            }
+        }
+
+        static Settings StandbySettings()
+        {
+            var settings = Settings.Load(Path.Combine(Path.GetTempPath(), "standby-test-" + Guid.NewGuid().ToString("N") + ".json"));
+            settings.StandbyToken = "token-1";
+            return settings;
+        }
+
+        static async Task<bool> Until(Func<bool> condition)
+        {
+            for (int i = 0; i < 50 && !condition(); i++)
+                await Task.Delay(100);
+            return condition();
+        }
+
+        sealed class FakeRelay : IDisposable
+        {
+            readonly HttpListener _listener = new HttpListener();
+            System.Net.WebSockets.WebSocket _current;
+            int _connects;
+
+            public int RefuseWith { get; set; }
+            public bool Full { get; set; }
+            public bool Closed { get; private set; }
+            public string Authorization { get; private set; }
+            public List<string> Received { get; } = new List<string>();
+            public int Connects => Volatile.Read(ref _connects);
+            public string Url { get; }
+
+            public FakeRelay()
+            {
+                var probe = new TcpListener(IPAddress.Loopback, 0);
+                probe.Start();
+                int port = ((IPEndPoint)probe.LocalEndpoint).Port;
+                probe.Stop();
+                Url = "http://localhost:" + port;
+                _listener.Prefixes.Add(Url + "/");
+                _listener.Start();
+                _ = Task.Run(Accept);
+            }
+
+            async Task Accept()
+            {
+                while (_listener.IsListening)
+                {
+                    HttpListenerContext context;
+                    try
+                    {
+                        context = await _listener.GetContextAsync();
+                    }
+                    catch (Exception)
+                    {
+                        return;
+                    }
+                    Interlocked.Increment(ref _connects);
+                    Authorization = context.Request.Headers["Authorization"];
+                    if (RefuseWith != 0 || context.Request.Url.AbsolutePath != "/standby")
+                    {
+                        context.Response.StatusCode = RefuseWith != 0 ? RefuseWith : 404;
+                        context.Response.Close();
+                        continue;
+                    }
+                    var socket = (await context.AcceptWebSocketAsync(null)).WebSocket;
+                    if (Full)
+                    {
+                        await socket.CloseOutputAsync((System.Net.WebSockets.WebSocketCloseStatus)4003, "full", CancellationToken.None);
+                        continue;
+                    }
+                    _current = socket;
+                    Closed = false;
+                    await Send("{\"t\":\"policy\",\"parkWithoutGame\":true,\"graceMinutes\":10}");
+                    _ = Task.Run(() => Serve(socket));
+                }
+            }
+
+            async Task Serve(System.Net.WebSockets.WebSocket socket)
+            {
+                var buffer = new byte[4096];
+                try
+                {
+                    while (socket.State == System.Net.WebSockets.WebSocketState.Open)
+                    {
+                        var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                        {
+                            Closed = true;
+                            await socket.CloseOutputAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                            return;
+                        }
+                        lock (Received)
+                            Received.Add(Encoding.UTF8.GetString(buffer, 0, result.Count));
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            public Task Send(string text)
+            {
+                return _current.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(text)), System.Net.WebSockets.WebSocketMessageType.Text, true, CancellationToken.None);
+            }
+
+            public Task CloseCurrent(int code)
+            {
+                return _current.CloseOutputAsync((System.Net.WebSockets.WebSocketCloseStatus)code, "test", CancellationToken.None);
+            }
+
+            public void Dispose()
+            {
+                _listener.Close();
+            }
         }
 
         static void ThroughputMeter()

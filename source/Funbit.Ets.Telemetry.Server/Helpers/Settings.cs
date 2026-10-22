@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Funbit.Ets.Telemetry.Server.Services;
 using Newtonsoft.Json;
 
 namespace Funbit.Ets.Telemetry.Server.Helpers
@@ -18,11 +19,12 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         public bool UrlReservationSetupHadErrors { get; set; }
 
         public string PcId { get; set; }
+        public string StandbyToken { get; set; }
+        public StandbyPolicy StandbyPolicy { get; set; } = new StandbyPolicy();
         public List<LinkedDevice> LinkedDevices { get; set; } = new List<LinkedDevice>();
         public List<RemovedDevice> RemovedDevices { get; set; } = new List<RemovedDevice>();
         public string PreferredRelayUrl { get; set; }
         public string Language { get; set; }
-        public string PresenceMode { get; set; } = "gameOnly";
 #if DEBUG
         public string ApiEnvironment { get; set; }
 #endif

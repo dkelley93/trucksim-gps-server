@@ -25,6 +25,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         static readonly ConcurrentDictionary<string, byte> LocalEndpoints = new ConcurrentDictionary<string, byte>();
         static readonly TimeSpan PeerWait = TimeSpan.FromSeconds(60);
+        static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(8);
         const int ReadBufferSize = 16 * 1024;
 
         readonly string _relayUrl;
@@ -42,6 +43,10 @@ namespace Funbit.Ets.Telemetry.Server.Services
         long _bytesSent, _bytesReceived;
 
         public string DeviceId { get; }
+        public string RelayUrl => _relayUrl;
+        public bool RelayFull { get; private set; }
+        public bool RelayLost { get; private set; }
+        public bool IsClosed => _closed != 0;
         public ThroughputMeter Throughput { get; } = new ThroughputMeter();
         public long BytesSent => Interlocked.Read(ref _bytesSent);
         public long BytesReceived => Interlocked.Read(ref _bytesReceived);
@@ -71,17 +76,20 @@ namespace Funbit.Ets.Telemetry.Server.Services
             _hub.On<byte[]>("Recv", OnRecv);
             _hub.On("PeerJoined", () => _peerTimer?.Dispose());
             _hub.On("PeerLeft", () => Close("peer left"));
-            _hub.Closed += _ =>
+            _hub.Closed += ex =>
             {
+                RelayLost |= ex != null;
                 Close("relay connection closed");
                 return Task.CompletedTask;
             };
 
-            await _hub.StartAsync();
+            using (var connect = new CancellationTokenSource(ConnectTimeout))
+                await _hub.StartAsync(connect.Token);
             _peerTimer = new Timer(_ => Close("app never joined"), null, PeerWait, Timeout.InfiniteTimeSpan);
             var result = await _hub.InvokeAsync<JoinResult>("Join", _ticket);
             if (!result.Ok)
             {
+                RelayFull = result.Reason == "capacity";
                 Close("join rejected: " + result.Reason);
                 return;
             }
@@ -214,7 +222,10 @@ namespace Funbit.Ets.Telemetry.Server.Services
             catch (Exception ex)
             {
                 if (!_cts.IsCancellationRequested)
+                {
+                    RelayLost = true;
                     Close("send failed: " + ex.Message);
+                }
             }
         }
 

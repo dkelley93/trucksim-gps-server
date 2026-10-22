@@ -52,6 +52,7 @@ namespace Funbit.Ets.Telemetry.Server
         string _serverError;
         bool _hasCheckedForUpdates;
         bool _startedMinimized;
+        bool _active;
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         readonly HttpClient _broadcastHttpClient = new HttpClient();
@@ -107,6 +108,27 @@ namespace Funbit.Ets.Telemetry.Server
             InitializeComponent();
             BuildUi();
             _showExistingInstanceMessage = RegisterWindowMessage(Program.ShowExistingInstanceMessage);
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            _active = true;
+            UpdateStandby();
+        }
+
+        protected override void OnDeactivate(EventArgs e)
+        {
+            base.OnDeactivate(e);
+            _active = false;
+            UpdateStandby();
+        }
+
+        void UpdateStandby()
+        {
+            var window = WindowState == FormWindowState.Minimized || !Visible ? WindowPresence.Hidden
+                : _active ? WindowPresence.Front : WindowPresence.Background;
+            _presence?.UpdateStandby(_server != null, Ets2ProcessHelper.IsEts2Running && ScsTelemetryDataReader.Instance.IsConnected, window);
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -316,6 +338,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             _settings.ApiEnvironment = environment;
             _settings.PreferredRelayUrl = null;
+            _settings.StandbyToken = null;
             _settings.Save();
             _productionItem.Checked = environment == null;
             _stagingItem.Checked = environment == "staging";
@@ -584,8 +607,8 @@ namespace Funbit.Ets.Telemetry.Server
                 _linkPanel.Tick();
 
                 bool pairingActive = _pairing.State == PairingState.Generating || _pairing.State == PairingState.Active;
-                _presence.SetWanted(_server != null && (_settings.PresenceMode == "always" || Ets2ProcessHelper.IsEts2Running ||
-                                                        WindowState != FormWindowState.Minimized || pairingActive));
+                _presence.SetWanted(_server != null && pairingActive);
+                UpdateStandby();
             }
             catch (Exception ex)
             {
@@ -632,6 +655,7 @@ namespace Funbit.Ets.Telemetry.Server
 
         void MainForm_Resize(object sender, EventArgs e)
         {
+            UpdateStandby();
             ShowInTaskbar = WindowState != FormWindowState.Minimized;
             if (!ShowInTaskbar && trayIcon.Tag == null)
             {

@@ -163,6 +163,7 @@
     <Compile Include="Services\PresenceClient.cs" />
     <Compile Include="Services\RelaySelector.cs" />
     <Compile Include="Services\RelayTunnelClient.cs" />
+    <Compile Include="Services\StandbyClient.cs" />
     <Compile Include="Services\ThroughputMeter.cs" />
     <Compile Include="Services\TunnelCodec.cs" />
     <Compile Include="Services\VoiceAudio.cs" />
