@@ -45,7 +45,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
                     Time = scs?.CommonValues?.GameTime?.Date ?? DateTime.MinValue,
                     Paused = scs?.Paused ?? false,
                     Version = scs != null ? $"{scs.GameVersion.Major}.{scs.GameVersion.Minor}" : null,
-                    GameProductVersion = Ets2ProcessHelper.LastRunningGameProductVersion,
+                    GameProductVersion = Ets2ProcessHelper.LastRunningGameProductVersion ?? TruckersMpWatcher.LoggedGameVersion,
                     TelemetryPluginVersion = scs?.DllVersion.ToString(),
                     TimeScale = scs?.CommonValues?.Scale ?? 0f,
                     NextRestStopTime = scs?.CommonValues?.NextRestStopTime?.Date ?? DateTime.MinValue
