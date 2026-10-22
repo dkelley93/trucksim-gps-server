@@ -13,3 +13,5 @@
 source/.vs/Funbit.Ets.Telemetry/v14/*
 /installer/Output
 /installer/vc_redist.x64.exe
+/tests/PairingTests/bin
+/tests/PairingTests/obj

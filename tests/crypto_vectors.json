@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "source": "RFC 5869 appendix A test case 1 plus vectors derived from the protocol constants; all byte fields are lowercase hex",
+  "contract": {
+    "hkdf": "HKDF-SHA256 (RFC 5869), extract-then-expand, salt and info as given",
+    "sessionKeys": {
+      "ikm": "deviceKey (32 B); the pairing secret S (32 B) during relay pairing",
+      "salt": "nonceA (16 B) || nonceB (16 B)",
+      "info": "tsgps-relay-v1",
+      "length": 128,
+      "split": [
+        "k_app2pc = okm[0..32]",
+        "k_pc2app = okm[32..64]",
+        "spare_app2pc = okm[64..96] (unused with GCM)",
+        "spare_pc2app = okm[96..128] (unused with GCM)"
+      ]
+    },
+    "pairingBlobKey": {
+      "ikm": "UTF-8 of the 6-char code as displayed (uppercase)",
+      "salt": "16 B from the PC, sent in the session",
+      "info": "tsgps-pair-v1",
+      "length": 32
+    },
+    "aead": "AES-256-GCM, 128-bit tag, 96-bit nonce, aad empty",
+    "tunnelNonce": "12 bytes = directionId (uint32 big-endian: 1 = app→pc, 2 = pc→app) || counter (uint64 big-endian, starts at 0, +1 per frame, never reused under one key)",
+    "tunnelFrameOnWire": "Send(byte[]) payload = counter (8 B big-endian) || ciphertext || tag; receiver rebuilds the nonce from its direction id + the counter and rejects counter <= last accepted",
+    "tunnelPlaintext": "deflate(SYNC_FLUSH) stream chunk of: streamId (uint16 big-endian) || flag (uint8: 0 data, 1 open, 2 close) || payload",
+    "envelope": "env / envR / blob = base64url(nonce(12 B, random) || ciphertext || tag), no padding",
+    "codeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789 (6 chars)",
+    "codeHash": "sha256(UTF-8 code) as 64 lowercase hex chars"
+  },
+  "hkdf": [
+    {
+      "name": "rfc5869_case1",
+      "ikm": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+      "salt": "000102030405060708090a0b0c",
+      "info": "����������",
+      "infoHex": "f0f1f2f3f4f5f6f7f8f9",
+      "length": 42,
+      "okm": "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865",
+      "note": "expected okm 3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
+    },
+    {
+      "name": "session_keys",
+      "ikm": "10171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9",
+      "salt": "a0a7aeb5bcc3cad1d8dfe6edf4fb0209b0b7bec5ccd3dae1e8eff6fd040b1219",
+      "info": "tsgps-relay-v1",
+      "infoHex": "74736770732d72656c61792d7631",
+      "length": 128,
+      "okm": "5a9e1b302df5f58bdfbfb7c5c989ca8ddac2279dd3b95fe965e1f56d909917704328b759cc0dfbece25ff1254d2409c1f2f2e340f7b98815b0b2cf9ff7dd9f102e5fc6ded725717e4376fa147b9694de10ba5394c240c1b9f43a72f723a16f56fd63d8ded33efae707ea549805317d008350fcd2df43458e5e8814a9813f7c54",
+      "note": "ikm = deviceKey (or pairing secret S during relay pairing); salt = nonceA || nonceB; okm[0..32] = k_app2pc, [32..64] = k_pc2app, [64..96] = spare_app2pc, [96..128] = spare_pc2app"
+    }
+  ],
+  "aesGcm": [
+    {
+      "name": "tunnel_app2pc_16B",
+      "key": "20272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9",
+      "nonce": "000000010000000000000010",
+      "plaintext": "40474e555c636a71787f868d949ba2a9",
+      "ciphertext": "edc5a88c620235b824f2f87c3cb1566f",
+      "tag": "c3e4c132f50e9d77d376735d18bc18e6",
+      "note": "nonce = dirId 0x00000001 (app→pc) || counter big-endian; counter = plaintext size here for variety; aad empty"
+    },
+    {
+      "name": "tunnel_pc2app_counter_max",
+      "key": "30373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb0209",
+      "nonce": "00000002ffffffffffffffff",
+      "plaintext": "70777e858c939aa1a8afb6bdc4cbd2d9",
+      "ciphertext": "49424e126bc3d912cdfb87e76a2e118a",
+      "tag": "c0a0c1d22b8c36616a9e04104ccf4b5f",
+      "note": "counter 0xffffffffffffffff"
+    },
+    {
+      "name": "env_under_deviceKey",
+      "key": "10171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9",
+      "nonce": "90979ea5acb3bac1c8cfd6dd",
+      "plaintext": "7b226465766963654e616d65223a22506978656c2038222c226e6f6e636541223a226f4b657574613745794e4c5a344f6e792d514148222c227473223a313738393030303030307d",
+      "ciphertext": "bb4fbc405b30b93f25c8d9b8de964192cca7380543bdadbc84bc7d3a8f31c323449047c34cc01329b1b4ad6619da490494899c27e3c351ee842305f8c049085cc7c9ce02ca3f1529",
+      "tag": "786a2826f917e15a72a227be186f0792",
+      "note": "env = base64url(nonce(12) || ciphertext || tag); nonce random per envelope; key = deviceKey (or S when pairing)"
+    }
+  ]
+}
