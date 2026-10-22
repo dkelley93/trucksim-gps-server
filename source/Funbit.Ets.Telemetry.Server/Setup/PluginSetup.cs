@@ -32,16 +32,25 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             LocalDllMissing     // Shipped plugin DLLs are missing — server install is corrupted.
         }
 
+        static readonly Dictionary<string, (DateTime stamp, long length, string md5)> Md5Cache = new Dictionary<string, (DateTime, long, string)>();
+
         internal static string ComputeMd5(string fileName)
         {
-            if (!File.Exists(fileName))
+            var info = new FileInfo(fileName);
+            if (!info.Exists)
                 return null;
-            using (var provider = new MD5CryptoServiceProvider())
+            lock (Md5Cache)
             {
-                var bytes = File.ReadAllBytes(fileName);
-                var hash = provider.ComputeHash(bytes);
-                return string.Concat(hash.Select(b => $"{b:x02}"));
+                (DateTime stamp, long length, string md5) cached;
+                if (Md5Cache.TryGetValue(fileName, out cached) && cached.stamp == info.LastWriteTimeUtc && cached.length == info.Length)
+                    return cached.md5;
             }
+            string hash;
+            using (var provider = new MD5CryptoServiceProvider())
+                hash = string.Concat(provider.ComputeHash(File.ReadAllBytes(fileName)).Select(b => $"{b:x02}"));
+            lock (Md5Cache)
+                Md5Cache[fileName] = (info.LastWriteTimeUtc, info.Length, hash);
+            return hash;
         }
 
         /// <summary>
