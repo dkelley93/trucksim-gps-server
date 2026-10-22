@@ -754,16 +754,11 @@ namespace Funbit.Ets.Telemetry.Server
             responseBuilder.Append("\r\n");
 
             var headerBytes = Encoding.UTF8.GetBytes(responseBuilder.ToString());
+            var responseBytes = new byte[headerBytes.Length + bodyBytes.Length];
+            Buffer.BlockCopy(headerBytes, 0, responseBytes, 0, headerBytes.Length);
+            Buffer.BlockCopy(bodyBytes, 0, responseBytes, headerBytes.Length, bodyBytes.Length);
 
-            // Send headers
-            await stream.WriteAsync(headerBytes, 0, headerBytes.Length);
-
-            // Send body
-            if (bodyBytes.Length > 0)
-            {
-                await stream.WriteAsync(bodyBytes, 0, bodyBytes.Length);
-            }
-
+            await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
             await stream.FlushAsync();
         }
 
