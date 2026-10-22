@@ -31,7 +31,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         public const int CodeLength = 6;
         const int CreateAttempts = 5;
 
-        readonly string _apiBaseUrl;
+        string _apiBaseUrl;
         readonly string _pcId;
         readonly int _port;
         readonly Func<IReadOnlyList<string>> _candidates;
@@ -54,6 +54,14 @@ namespace Funbit.Ets.Telemetry.Server.Services
         }
 
         public string PcName => Environment.MachineName;
+
+#if DEBUG
+        public void UseApi(string apiBaseUrl)
+        {
+            Cancel();
+            _apiBaseUrl = apiBaseUrl;
+        }
+#endif
 
         public TimeSpan Remaining
         {

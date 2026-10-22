@@ -66,6 +66,9 @@ namespace Funbit.Ets.Telemetry.Server
         MenuStrip _menu;
         ToolStripMenuItem _serverMenu, _rerunSetupItem, _startWithWindowsItem, _languageMenu, _helpMenu, _websiteItem,
             _connectionHelpItem, _githubItem, _discordItem, _logFolderItem, _checkUpdatesItem, _connectionHelpLink;
+#if DEBUG
+        ToolStripMenuItem _productionItem, _stagingItem;
+#endif
         Panel _brand;
         Image _brandIcon;
         Card _serverCard;
@@ -142,6 +145,15 @@ namespace Funbit.Ets.Telemetry.Server
             _startWithWindowsItem.Click += startWithWindowsToolStripMenuItem_Click;
             _languageMenu = new ToolStripMenuItem();
             _serverMenu.DropDownItems.AddRange(new ToolStripItem[] { _rerunSetupItem, _startWithWindowsItem, new ToolStripSeparator(), _languageMenu });
+#if DEBUG
+            _productionItem = new ToolStripMenuItem("Production") { Checked = _settings.ApiEnvironment != "staging" };
+            _productionItem.Click += (s, e) => SetEnvironment(null);
+            _stagingItem = new ToolStripMenuItem("Staging") { Checked = _settings.ApiEnvironment == "staging" };
+            _stagingItem.Click += (s, e) => SetEnvironment("staging");
+            var environmentMenu = new ToolStripMenuItem("Environment");
+            environmentMenu.DropDownItems.AddRange(new ToolStripItem[] { _productionItem, _stagingItem });
+            _serverMenu.DropDownItems.Add(environmentMenu);
+#endif
             _helpMenu = new ToolStripMenuItem();
             _websiteItem = new ToolStripMenuItem();
             _websiteItem.Click += (s, e) => ProcessHelper.OpenUrl(CloudConfig.WebsiteUrl);
@@ -295,6 +307,19 @@ namespace Funbit.Ets.Telemetry.Server
             foreach (var item in _languageMenu.DropDownItems.OfType<ToolStripMenuItem>())
                 item.Checked = (string)item.Tag == code;
         }
+
+#if DEBUG
+        void SetEnvironment(string environment)
+        {
+            _settings.ApiEnvironment = environment;
+            _settings.PreferredRelayUrl = null;
+            _settings.Save();
+            _productionItem.Checked = environment == null;
+            _stagingItem.Checked = environment == "staging";
+            _pairing.UseApi(CloudConfig.ApiBaseUrl);
+            _presence.UseApi(CloudConfig.ApiBaseUrl);
+        }
+#endif
 
         void ApplyTexts()
         {

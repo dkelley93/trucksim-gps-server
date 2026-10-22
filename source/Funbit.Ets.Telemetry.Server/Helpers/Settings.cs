@@ -22,6 +22,9 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         public string PreferredRelayUrl { get; set; }
         public string Language { get; set; }
         public string PresenceMode { get; set; } = "gameOnly";
+#if DEBUG
+        public string ApiEnvironment { get; set; }
+#endif
 
         #endregion
 

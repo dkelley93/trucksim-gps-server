@@ -19,7 +19,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         static readonly int[] ReconnectSeconds = { 0, 2, 5, 10, 30, 60 };
         const int MaxBackoffSeconds = 300;
 
-        readonly string _apiBaseUrl;
+        string _apiBaseUrl;
         readonly Settings _settings;
         readonly LinkedDeviceStore _devices;
         readonly PairingSessionService _pairing;
@@ -50,6 +50,23 @@ namespace Funbit.Ets.Telemetry.Server.Services
         }
 
         public bool IsConnected => _hub?.State == HubConnectionState.Connected;
+
+#if DEBUG
+        public void UseApi(string apiBaseUrl)
+        {
+            bool wanted;
+            lock (_lock)
+                wanted = _wanted;
+            Stop();
+            lock (_lock)
+            {
+                _apiBaseUrl = apiBaseUrl;
+                _relayUrl = "";
+            }
+            if (wanted)
+                SetWanted(true);
+        }
+#endif
 
         public void SetWanted(bool wanted)
         {
