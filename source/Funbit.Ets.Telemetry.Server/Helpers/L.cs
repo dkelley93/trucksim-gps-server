@@ -21,9 +21,11 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
             { "es", "Español" },
             { "fr", "Français" },
             { "id", "Bahasa Indonesia" },
+            { "it", "Italiano" },
             { "nl", "Nederlands" },
             { "pl", "Polski" },
             { "pt-BR", "Português (Brasil)" },
+            { "ro", "Română" },
             { "ru", "Русский" },
             { "tr", "Türkçe" }
         };
