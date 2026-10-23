@@ -208,13 +208,14 @@ namespace Funbit.Ets.Telemetry.Server.Services
             return DateTime.UtcNow - device.LastSeenAt < ConnectedWindow;
         }
 
+        // Connected devices keep their link order: every request moves LastSeenAt, so sorting them by it reshuffles the list each second.
         public List<LinkedDevice> Sorted()
         {
             lock (_lock)
             {
-                return _settings.LinkedDevices
-                    .OrderByDescending(IsConnected)
-                    .ThenByDescending(d => d.LastSeenAt)
+                var byState = _settings.LinkedDevices.ToLookup(IsConnected);
+                return byState[true].OrderBy(d => d.AddedAt).ThenBy(d => d.DeviceId, StringComparer.Ordinal)
+                    .Concat(byState[false].OrderByDescending(d => d.LastSeenAt))
                     .ToList();
             }
         }

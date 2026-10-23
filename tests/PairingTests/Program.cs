@@ -32,6 +32,7 @@ namespace PairingTests
             Run("http routes", () => HttpRoutes().GetAwaiter().GetResult());
             Run("handshake", Handshake);
             Run("throughput meter", ThroughputMeter);
+            Run("linked devices order", LinkedDevicesOrder);
             Run("relay selection", () => RelaySelection().GetAwaiter().GetResult());
             Run("reconnect jitter", ReconnectJitter);
             Run("parking rules", ParkingRulesTable);
@@ -348,6 +349,27 @@ namespace PairingTests
             Check(meter.UpBytesPerSecond == 0 && meter.DownBytesPerSecond == 0, "idle tunnel decays to zero within the window");
             meter.Sample(2048L * 5 + 100, 512L * 5, t0.AddSeconds(12));
             Check(meter.UpBytesPerSecond == 20 && meter.DownBytesPerSecond == 0, "a second sample at the same tick keeps the window span");
+        }
+
+        static void LinkedDevicesOrder()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "tsgps-pairing-tests-" + Guid.NewGuid().ToString("N"));
+            var settings = Settings.Load(Path.Combine(dir, "Settings.json"));
+            var devices = new LinkedDeviceStore(settings);
+            var now = DateTime.UtcNow;
+            settings.LinkedDevices.AddRange(new[]
+            {
+                new LinkedDevice { DeviceId = "idle-old", AddedAt = now.AddDays(-9), LastSeenAt = now.AddDays(-3) },
+                new LinkedDevice { DeviceId = "phone", AddedAt = now.AddDays(-5), LastSeenAt = now },
+                new LinkedDevice { DeviceId = "idle-recent", AddedAt = now.AddDays(-1), LastSeenAt = now.AddHours(-1) },
+                new LinkedDevice { DeviceId = "tablet", AddedAt = now.AddDays(-8), LastSeenAt = now.AddSeconds(-2) },
+            });
+            string order = string.Join(",", devices.Sorted().Select(d => d.DeviceId));
+            Check(order == "tablet,phone,idle-recent,idle-old", "connected first in link order, then idle by last seen: " + order);
+            devices.Touch("tablet", null, ConnectionMethod.Direct);
+            order = string.Join(",", devices.Sorted().Select(d => d.DeviceId));
+            Check(order == "tablet,phone,idle-recent,idle-old", "a request from a connected device does not move it: " + order);
+            Directory.Delete(dir, true);
         }
 
         static void CryptoVectors()
