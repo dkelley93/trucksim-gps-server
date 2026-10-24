@@ -511,7 +511,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             try
             {
-                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices, _voice);
+                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices, _voice, _presence);
                 _server.Start();
                 _serverError = null;
             }
@@ -613,7 +613,7 @@ namespace Funbit.Ets.Telemetry.Server
                 _linkPanel.Tick();
 
                 bool pairingActive = _pairing.State == PairingState.Generating || _pairing.State == PairingState.Active;
-                _presence.SetWanted(_server != null && pairingActive);
+                _presence.SetWanted(_server != null && (pairingActive || _presence.WarmingUp));
                 UpdateStandby();
             }
             catch (Exception ex)

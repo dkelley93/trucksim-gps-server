@@ -11,6 +11,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         public bool Ok;
         public string EnvR = "";
         public string DeviceName;
+        public bool Warmup;
         public byte[] KeyAppToPc;
         public byte[] KeyPcToApp;
     }
@@ -45,6 +46,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
             {
                 Ok = true,
                 DeviceName = (string)request["deviceName"],
+                Warmup = (bool?)request["warmup"] ?? false,
                 KeyAppToPc = new byte[32],
                 KeyPcToApp = new byte[32],
                 EnvR = Crypto.SealEnvelope(key, JsonConvert.SerializeObject(new

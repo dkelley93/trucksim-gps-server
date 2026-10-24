@@ -31,6 +31,7 @@ namespace PairingTests
             Run("pairing session", () => PairingSession().GetAwaiter().GetResult());
             Run("http routes", () => HttpRoutes().GetAwaiter().GetResult());
             Run("handshake", Handshake);
+            Run("standby token freshness", StandbyTokenFreshness);
             Run("throughput meter", ThroughputMeter);
             Run("linked devices order", LinkedDevicesOrder);
             Run("relay selection", () => RelaySelection().GetAwaiter().GetResult());
@@ -528,12 +529,13 @@ namespace PairingTests
             using (var pairing = new PairingSessionService(api.BaseUrl, settings.PcId, 31377, () => new List<string> { "127.0.0.1/8" }, TimeSpan.FromMinutes(2)))
             {
                 int port = FreePort();
-                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(Path.Combine(dir, "voice")), new FakeVoiceAudio())))
+                using (var presence = new PresenceClient("http://127.0.0.1:9", settings, devices, pairing, () => new List<string>(), port))
+                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(Path.Combine(dir, "voice")), new FakeVoiceAudio()), presence))
                 using (var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}/") })
                 {
                     server.Start();
                     var hello = JObject.Parse(await http.GetStringAsync("/api/pair/hello"));
-                    Check((string)hello["pcId"] == settings.PcId && (string)hello["name"] == Environment.MachineName && (int)hello["serverVersion"] == 7, "GET /api/pair/hello -> {pcId, name, serverVersion: 7}");
+                    Check((string)hello["pcId"] == settings.PcId && (string)hello["name"] == Environment.MachineName && (int)hello["serverVersion"] == 7 && !(bool)hello["standby"] && (bool)hello["standbyRenew"], "GET /api/pair/hello -> {pcId, name, serverVersion: 7, standby: false, standbyRenew: true}");
 
                     var telemetry = JObject.Parse(await http.GetStringAsync("/api/ets2/telemetry"));
                     Check((int)telemetry["serverVersion"] == 7, "telemetry serverVersion is 7");
@@ -597,6 +599,19 @@ namespace PairingTests
                     request.Headers.Add("X-TSGPS-Device", manualId);
                     var after = await http.SendAsync(request);
                     Check(!after.Headers.Contains("X-TSGPS-Pair") && devices.Get(manualId).LastMethod == ConnectionMethod.Direct, "after complete-lan: no offer, method direct");
+
+                    var anonymousWarmup = await http.PostAsync("/api/pair/warmup", null);
+                    Check(anonymousWarmup.StatusCode == HttpStatusCode.NotFound && !presence.WarmingUp, "warmup without a linked device -> 404, pairing line stays closed");
+                    var warmup = await http.SendAsync(WithDevice(HttpMethod.Post, "/api/pair/warmup", manualId));
+                    Check(warmup.StatusCode == HttpStatusCode.OK && !(bool)JObject.Parse(await warmup.Content.ReadAsStringAsync())["ready"] && presence.WarmingUp,
+                        "warmup from a linked device opens the pairing line for a minute, ready: false until it registers");
+                    settings.StandbyToken = StandbyToken(settings.PcId, DateTime.UtcNow.AddDays(30));
+                    hello = JObject.Parse(await http.GetStringAsync("/api/pair/hello"));
+                    Check((bool)hello["standby"] && !(bool)hello["standbyRenew"], "a fresh token: standby true, no renewal asked");
+                    settings.StandbyToken = StandbyToken(settings.PcId, DateTime.UtcNow.AddDays(3));
+                    hello = JObject.Parse(await http.GetStringAsync("/api/pair/hello"));
+                    Check((bool)hello["standby"] && (bool)hello["standbyRenew"], "a token within a week of expiry still parks but asks for a renewal");
+                    settings.StandbyToken = null;
 
                     var plain = await http.GetAsync("/api/ets2/telemetry");
                     Check(plain.StatusCode == HttpStatusCode.OK && !plain.Headers.Contains("X-TSGPS-Pair") && devices.Sorted().Count == 2, "request without device headers is untouched");
@@ -724,6 +739,32 @@ namespace PairingTests
             Check(!HandshakeResponder.Answer(Crypto.RandomBytes(32), candidates, "", nonceAText, env).Ok, "wrong key rejected");
             Check(!HandshakeResponder.Answer(deviceKey, candidates, "", Crypto.Base64Url(Crypto.RandomBytes(16)), env).Ok, "nonceA mismatch rejected");
             Check(!HandshakeResponder.Answer(deviceKey, candidates, "", nonceAText, "not-base64!").Ok, "garbage env rejected");
+
+            Check(!answer.Warmup, "a plain handshake is no warm-up");
+            string warmupEnv = Crypto.SealEnvelope(deviceKey, Newtonsoft.Json.JsonConvert.SerializeObject(new { deviceName = "Pixel 8", nonceA = nonceAText, ts = 1789000000, warmup = true }));
+            var warmup = HandshakeResponder.Answer(deviceKey, candidates, "https://eu1.relay.example", nonceAText, warmupEnv);
+            Check(warmup.Ok && warmup.Warmup, "env warmup: true is accepted and flagged, so the PC opens no relay leg");
+        }
+
+        static void StandbyTokenFreshness()
+        {
+            var now = DateTime.UtcNow;
+            string pcId = Crypto.RandomHexId();
+            Check(StandbyClient.IsFreshToken(StandbyToken(pcId, now.AddDays(30)), now), "token valid for 30 days is fresh");
+            Check(!StandbyClient.IsFreshToken(StandbyToken(pcId, now.AddDays(6)), now), "token within a week of expiry is not fresh");
+            Check(!StandbyClient.IsFreshToken(StandbyToken(pcId, now.AddDays(-1)), now), "expired token is not fresh");
+            Check(!StandbyClient.IsFreshToken(null, now) && !StandbyClient.IsFreshToken("", now), "no token is not fresh");
+            Check(!StandbyClient.IsFreshToken("!!", now) && !StandbyClient.IsFreshToken(Crypto.Base64Url(Crypto.RandomBytes(40)), now), "unreadable token is not fresh");
+        }
+
+        static string StandbyToken(string pcId, DateTime expires)
+        {
+            var bytes = Crypto.RandomBytes(56);
+            Buffer.BlockCopy(Crypto.FromHex(pcId), 0, bytes, 0, 16);
+            long exp = new DateTimeOffset(expires).ToUnixTimeSeconds();
+            for (int i = 0; i < 8; i++)
+                bytes[23 - i] = (byte)(exp >> (8 * i));
+            return Crypto.Base64Url(bytes);
         }
 
         static VoiceClip PcmClip(string id, int samples, short value = 1000)
@@ -916,7 +957,8 @@ namespace PairingTests
             using (var pairing = new PairingSessionService(api.BaseUrl, settings.PcId, 31377, () => new List<string> { "127.0.0.1/8" }, TimeSpan.FromMinutes(2)))
             {
                 int port = FreePort();
-                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(voiceDir), audio)))
+                using (var presence = new PresenceClient("http://127.0.0.1:9", settings, devices, pairing, () => new List<string>(), port))
+                using (var server = new MinimalHttpServer(port, pairing, devices, new VoiceEndpoints(devices, new VoiceCache(voiceDir), audio), presence))
                 using (var http = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}/") })
                 {
                     server.Start();

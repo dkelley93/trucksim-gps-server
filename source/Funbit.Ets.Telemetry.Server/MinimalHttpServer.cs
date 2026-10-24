@@ -25,6 +25,7 @@ namespace Funbit.Ets.Telemetry.Server
         private readonly PairingSessionService _pairing;
         private readonly LinkedDeviceStore _devices;
         private readonly VoiceEndpoints _voice;
+        private readonly PresenceClient _presence;
         private TcpListener _listener;
         private CancellationTokenSource _cancellationTokenSource;
         private Task _listenerTask;
@@ -42,12 +43,13 @@ namespace Funbit.Ets.Telemetry.Server
         const int MaxVoiceBodyBytes = 4 * 1024 * 1024;
         const string VoicePathPrefix = "/api/voice/";
 
-        public MinimalHttpServer(int port, PairingSessionService pairing, LinkedDeviceStore devices, VoiceEndpoints voice)
+        public MinimalHttpServer(int port, PairingSessionService pairing, LinkedDeviceStore devices, VoiceEndpoints voice, PresenceClient presence)
         {
             _port = port;
             _pairing = pairing;
             _devices = devices;
             _voice = voice;
+            _presence = presence;
         }
 
         public void Start()
@@ -86,6 +88,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Info("  - POST /api/pair/complete     (QR/code pairing completion)");
                     Log.Info("  - POST /api/pair/complete-lan (Manual-IP pairing completion)");
                     Log.Info("  - POST /api/pair/unlink       (Device leaves the linked list)");
+                    Log.Info("  - POST /api/pair/warmup       (Pairing line for a standby token)");
                     Log.Info("  - POST /api/voice/hello|clips|play|effect|stop (Voice prompts on this PC)");
                 }
                 catch (Exception ex)
@@ -386,6 +389,7 @@ namespace Funbit.Ets.Telemetry.Server
             else if (path == "/api/pair/hello") response = HandlePairHello(request);
             else if (path == "/api/pair/complete") response = HandlePairComplete(request);
             else if (path == "/api/pair/complete-lan") response = HandlePairCompleteLan(request);
+            else if (path == "/api/pair/warmup") response = HandlePairWarmup(request, deviceId);
             else if (path == "/api/pair/unlink") response = HandlePairUnlink(request);
             else if (path.StartsWith(VoicePathPrefix, StringComparison.Ordinal)) response = HandleVoice(request, path, deviceId);
             else
@@ -597,7 +601,9 @@ namespace Funbit.Ets.Telemetry.Server
                 deviceKey = deviceKey == null ? null : Crypto.Base64Url(deviceKey),
                 pcId = _devices.PcId,
                 name = _pairing.PcName,
-                serverVersion = CloudConfig.ProtocolVersion
+                serverVersion = CloudConfig.ProtocolVersion,
+                standby = _presence.HasStandbyToken,
+                standbyRenew = !_presence.HasFreshStandbyToken
             };
         }
 
@@ -639,6 +645,16 @@ namespace Funbit.Ets.Telemetry.Server
             var key = _devices.Link(req.DeviceId, req.DeviceName, ConnectionMethod.Direct);
             Log.InfoFormat("Device {0} linked (manual IP)", req.DeviceId);
             return JsonResponse(PcIdentity(key));
+        }
+
+        private HttpResponse HandlePairWarmup(HttpRequest request, string deviceId)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+            if (RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint))
+                return JsonResponse(new { error = "lan_only" }, 403, "Forbidden");
+            if (deviceId == null || _devices.GetKey(deviceId) == null)
+                return JsonResponse(new { error = "not_linked" }, 404, "Not Found");
+            return JsonResponse(new { ready = _presence.OpenForWarmup() });
         }
 
         private HttpResponse HandlePairUnlink(HttpRequest request)
