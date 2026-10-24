@@ -44,7 +44,13 @@ namespace SIIDecryptSharp
 
         public static byte[] Decrypt(string filePath, bool decode=true)
         {
-            var bytes = File.ReadAllBytes(filePath);
+            byte[] bytes;
+            using (var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var memory = new MemoryStream())
+            {
+                file.CopyTo(memory);
+                bytes = memory.ToArray();
+            }
 
             int streamPos = 0;
 

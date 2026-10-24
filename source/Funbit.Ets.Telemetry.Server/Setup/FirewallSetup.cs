@@ -10,10 +10,18 @@ namespace Funbit.Ets.Telemetry.Server.Setup
     {
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
-        const string FirewallRuleName = "TruckSim GPS Telemetry Server";
-        const string FirewallTcpRuleName = "TruckSim GPS Telemetry Server (TCP Port)";
-        const string FirewallUdpRuleName = "TruckSim GPS Telemetry Server (UDP Port)";
-        const string LegacyFirewallRuleName = "TRUCKSIM GPS TELEMETRY SERVER (PORT 31377)";
+        const string FirewallRuleName = "TruckSim GPS PC Telemetry";
+        const string FirewallTcpRuleName = "TruckSim GPS PC Telemetry (TCP Port)";
+        const string FirewallUdpRuleName = "TruckSim GPS PC Telemetry (UDP Port)";
+
+        // Every rule name an older release created; keep them all so any old version upgrades cleanly.
+        static readonly string[] LegacyFirewallRuleNames =
+        {
+            "TRUCKSIM GPS TELEMETRY SERVER (PORT 31377)",
+            "TruckSim GPS Telemetry Server",
+            "TruckSim GPS Telemetry Server (TCP Port)",
+            "TruckSim GPS Telemetry Server (UDP Port)",
+        };
 
         SetupStatus _status;
 
@@ -50,7 +58,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
 
                 // Cleanup: delete legacy and any previous incarnations of our rules. "Rule not
                 // found" is expected on first install and is swallowed by SafeDeleteRule.
-                SafeDeleteRule($"name=\"{LegacyFirewallRuleName}\"");
+                foreach (var legacyName in LegacyFirewallRuleNames)
+                    SafeDeleteRule($"name=\"{legacyName}\"");
                 SafeDeleteRule($"name=\"{FirewallRuleName}\"");
                 SafeDeleteRule($"name=\"{FirewallTcpRuleName}\"");
                 SafeDeleteRule($"name=\"{FirewallUdpRuleName}\"");
@@ -62,7 +71,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 ProcessHelper.RunNetShell(
                     $"advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow " +
                     $"program=\"{exePath}\" profile=any enable=yes " +
-                    $"description=\"Allow inbound traffic to TruckSim GPS Telemetry Server\"",
+                    $"description=\"Allow inbound traffic to TruckSim GPS PC Telemetry\"",
                     "Failed to add program-based Firewall rule");
 
                 // TCP port fallback — if program-path matching fails.
@@ -70,7 +79,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 ProcessHelper.RunNetShell(
                     $"advfirewall firewall add rule name=\"{FirewallTcpRuleName}\" dir=in action=allow " +
                     $"protocol=TCP localport={port} profile=any enable=yes " +
-                    $"description=\"TCP fallback for TruckSim GPS Telemetry Server\"",
+                    $"description=\"TCP fallback for TruckSim GPS PC Telemetry\"",
                     "Failed to add TCP port Firewall rule");
 
                 // UDP port fallback — for future auto-discovery traffic, if program-path matching fails.
@@ -78,7 +87,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 ProcessHelper.RunNetShell(
                     $"advfirewall firewall add rule name=\"{FirewallUdpRuleName}\" dir=in action=allow " +
                     $"protocol=UDP localport={port} profile=any enable=yes " +
-                    $"description=\"UDP fallback for TruckSim GPS Telemetry Server (auto-discovery)\"",
+                    $"description=\"UDP fallback for TruckSim GPS PC Telemetry (auto-discovery)\"",
                     "Failed to add UDP port Firewall rule");
 
                 _status = SetupStatus.Installed;
@@ -89,9 +98,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 Log.Error(ex);
                 Settings.Instance.FirewallSetupHadErrors = true;
                 Settings.Instance.Save();
-                throw new Exception("Cannot configure Windows Firewall." + Environment.NewLine +
-                                    "If you are using some 3rd-party firewall please open " +
-                                    ConfigurationManager.AppSettings["Port"] + " TCP port manually!", ex);
+                throw new Exception(L.Get("setup.firewall_failed_install", ConfigurationManager.AppSettings["Port"]), ex);
             }
 
             return _status;
@@ -99,14 +106,13 @@ namespace Funbit.Ets.Telemetry.Server.Setup
 
         public SetupStatus Uninstall(IWin32Window owner)
         {
-            if (_status == SetupStatus.Uninstalled)
-                return _status;
-
+            // No early-return on Uninstalled: rules under an older name read as Uninstalled and must still go.
             try
             {
                 string exePath = Application.ExecutablePath;
 
-                SafeDeleteRule($"name=\"{LegacyFirewallRuleName}\"");
+                foreach (var legacyName in LegacyFirewallRuleNames)
+                    SafeDeleteRule($"name=\"{legacyName}\"");
                 SafeDeleteRule($"name=\"{FirewallRuleName}\"");
                 SafeDeleteRule($"name=\"{FirewallTcpRuleName}\"");
                 SafeDeleteRule($"name=\"{FirewallUdpRuleName}\"");
@@ -118,9 +124,7 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             {
                 Log.Error(ex);
                 _status = SetupStatus.Failed;
-                throw new Exception("Cannot configure Windows Firewall." + Environment.NewLine +
-                                    "If you are using some 3rd-party firewall please close " +
-                                    ConfigurationManager.AppSettings["Port"] + " TCP port manually!", ex);
+                throw new Exception(L.Get("setup.firewall_failed_uninstall", ConfigurationManager.AppSettings["Port"]), ex);
             }
         }
 

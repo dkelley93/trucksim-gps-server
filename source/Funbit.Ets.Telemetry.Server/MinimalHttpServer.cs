@@ -10,18 +10,21 @@ using System.Threading;
 using System.Threading.Tasks;
 using Funbit.Ets.Telemetry.Server.Controllers;
 using Funbit.Ets.Telemetry.Server.Data;
+using Funbit.Ets.Telemetry.Server.Helpers;
+using Funbit.Ets.Telemetry.Server.Services;
+using Newtonsoft.Json;
 
 namespace Funbit.Ets.Telemetry.Server
 {
-    /// <summary>
-    /// Minimal HTTP server implementation using raw TCP sockets.
-    /// Bypasses HTTP.SYS completely to work around Windows KB5066835/KB5065789 bugs.
-    /// </summary>
+    // Raw TCP-socket HTTP server: bypasses HTTP.SYS to work around the Windows KB5066835/KB5065789 bugs.
     public class MinimalHttpServer : IDisposable
     {
         static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private readonly int _port;
+        private readonly PairingSessionService _pairing;
+        private readonly LinkedDeviceStore _devices;
+        private readonly VoiceEndpoints _voice;
         private TcpListener _listener;
         private CancellationTokenSource _cancellationTokenSource;
         private Task _listenerTask;
@@ -33,9 +36,18 @@ namespace Funbit.Ets.Telemetry.Server
         // that lingers in TIME_WAIT for 240s, eventually exhausting ephemeral ports.
         const int KeepAliveTimeoutMs = 30000;
 
-        public MinimalHttpServer(int port)
+        // Cap on POST body size. Pair/auth endpoints take tiny JSON; this prevents memory
+        // pressure from a malformed or hostile Content-Length.
+        const int MaxBodyBytes = 64 * 1024;
+        const int MaxVoiceBodyBytes = 4 * 1024 * 1024;
+        const string VoicePathPrefix = "/api/voice/";
+
+        public MinimalHttpServer(int port, PairingSessionService pairing, LinkedDeviceStore devices, VoiceEndpoints voice)
         {
             _port = port;
+            _pairing = pairing;
+            _devices = devices;
+            _voice = voice;
         }
 
         public void Start()
@@ -70,6 +82,11 @@ namespace Funbit.Ets.Telemetry.Server
                     Log.Info("  - GET  /api/game/state        (Active profile state)");
                     Log.Info("  - GET  /api/game/profiles     (Game profile list)");
                     Log.Info("  - GET  /api/game/profile-mods (Profile mod list)");
+                    Log.Info("  - GET  /api/pair/hello        (PC identity for pairing)");
+                    Log.Info("  - POST /api/pair/complete     (QR/code pairing completion)");
+                    Log.Info("  - POST /api/pair/complete-lan (Manual-IP pairing completion)");
+                    Log.Info("  - POST /api/pair/unlink       (Device leaves the linked list)");
+                    Log.Info("  - POST /api/voice/hello|clips|play|effect|stop (Voice prompts on this PC)");
                 }
                 catch (Exception ex)
                 {
@@ -171,6 +188,7 @@ namespace Funbit.Ets.Telemetry.Server
                                 break;
                             }
 
+                            request.RemoteEndpoint = clientEndpoint;
                             requestCount++;
 
                             bool clientWantsClose = request.Headers != null &&
@@ -223,36 +241,107 @@ namespace Funbit.Ets.Telemetry.Server
             // Idle timeout: if no request arrives within timeoutMs, return null to close
             // the keep-alive connection. NetworkStream.ReadAsync doesn't respect
             // Socket.ReceiveTimeout, so we use Task.WhenAny with Task.Delay instead.
-            var readTask = stream.ReadAsync(buffer, 0, buffer.Length);
-            var completed = await Task.WhenAny(readTask, Task.Delay(timeoutMs));
+            var bytesRead = await ReadWithTimeoutAsync(stream, buffer, 0, buffer.Length, timeoutMs);
 
-            if (completed != readTask)
-                return null; // Idle timeout — close connection
-
-            var bytesRead = await readTask;
-
-            if (bytesRead == 0)
+            if (bytesRead <= 0)
                 return null;
 
-            var requestText = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-            // Parse HTTP request line (e.g., "GET /api/ets2/telemetry HTTP/1.1")
-            var lines = requestText.Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (lines.Length == 0)
+            int headerEnd = FindHeaderEnd(buffer, bytesRead);
+            while (headerEnd < 0 && bytesRead < buffer.Length)
+            {
+                int more = await ReadWithTimeoutAsync(stream, buffer, bytesRead, buffer.Length - bytesRead, timeoutMs);
+                if (more <= 0)
+                    return null;
+                bytesRead += more;
+                headerEnd = FindHeaderEnd(buffer, bytesRead);
+            }
+            if (headerEnd < 0)
                 return null;
 
-            var requestLine = lines[0].Split(' ');
+            string headerText = Encoding.UTF8.GetString(buffer, 0, headerEnd);
+            var headerLines = headerText.Split(new[] { "\r\n" }, StringSplitOptions.None);
+            if (headerLines.Length == 0) return null;
 
-            if (requestLine.Length < 3)
-                return null;
+            var requestLine = headerLines[0].Split(' ');
+            if (requestLine.Length < 3) return null;
+
+            var headers = headerLines.Skip(1).Where(l => !string.IsNullOrEmpty(l)).ToArray();
+
+            string body = null;
+            int contentLength = GetContentLength(headers);
+            if (contentLength > 0)
+            {
+                int maxBody = requestLine[1].StartsWith(VoicePathPrefix, StringComparison.Ordinal) ? MaxVoiceBodyBytes : MaxBodyBytes;
+                if (contentLength > maxBody)
+                {
+                    Log.WarnFormat("Request body Content-Length {0} exceeds cap {1}; rejecting", contentLength, maxBody);
+                    return null;
+                }
+
+                int bodyStart = headerEnd + 4; // skip past CRLF CRLF
+                int alreadyRead = Math.Max(0, bytesRead - bodyStart);
+
+                var bodyBuffer = new byte[contentLength];
+                if (alreadyRead > 0)
+                {
+                    int take = Math.Min(alreadyRead, contentLength);
+                    Buffer.BlockCopy(buffer, bodyStart, bodyBuffer, 0, take);
+                }
+
+                int offset = Math.Min(alreadyRead, contentLength);
+                while (offset < contentLength)
+                {
+                    int n = await ReadWithTimeoutAsync(stream, bodyBuffer, offset, contentLength - offset, timeoutMs);
+                    if (n <= 0) break;
+                    offset += n;
+                }
+
+                body = Encoding.UTF8.GetString(bodyBuffer, 0, offset);
+            }
 
             return new HttpRequest
             {
                 Method = requestLine[0],
                 Path = requestLine[1],
-                Headers = lines.Skip(1).TakeWhile(l => !string.IsNullOrWhiteSpace(l)).ToArray()
+                Headers = headers,
+                Body = body
             };
+        }
+
+        // NetworkStream.ReadAsync ignores Socket.ReceiveTimeout, so the idle deadline is applied here.
+        static async Task<int> ReadWithTimeoutAsync(NetworkStream stream, byte[] buffer, int offset, int count, int timeoutMs)
+        {
+            var readTask = stream.ReadAsync(buffer, offset, count);
+            if (await Task.WhenAny(readTask, Task.Delay(timeoutMs)) != readTask)
+                return -1;
+            return await readTask;
+        }
+
+        static int FindHeaderEnd(byte[] buffer, int length)
+        {
+            for (int i = 0; i + 3 < length; i++)
+            {
+                if (buffer[i] == 0x0D && buffer[i + 1] == 0x0A &&
+                    buffer[i + 2] == 0x0D && buffer[i + 3] == 0x0A)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        static int GetContentLength(string[] headers)
+        {
+            foreach (var h in headers)
+            {
+                if (h.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var value = h.Substring("Content-Length:".Length).Trim();
+                    if (int.TryParse(value, out int n) && n >= 0)
+                        return n;
+                }
+            }
+            return 0;
         }
 
         private HttpResponse RouteRequest(HttpRequest request)
@@ -278,19 +367,27 @@ namespace Funbit.Ets.Telemetry.Server
             if (string.IsNullOrEmpty(path))
                 path = "/";
 
-            // Route to appropriate handler
+            string deviceId = HeaderValue(request.Headers, DeviceHeader);
+            if (!Crypto.IsHexId(deviceId, 32))
+                deviceId = null;
+            if (deviceId != null && HeaderValue(request.Headers, PairHeader) == PairNew)
+                _devices.ClearRemoved(deviceId);
+            bool removed = deviceId != null && _devices.IsRemoved(deviceId);
+            if (removed && !BypassesRemoval(path))
+                return JsonResponse(new { error = "device_removed" }, 403, "Forbidden");
+
+            HttpResponse response;
             if (path == "/")
-            {
-                return HandleStatusPage(request);
-            }
-            else if (path == "/api/ets2/telemetry")
-            {
-                return HandleTelemetryRequest(request);
-            }
+                response = HandleStatusPage(request);
+            else if (path == TelemetryEndpoints.TelemetryApiUriPath)
+                response = HandleTelemetryRequest(request);
             else if (path == "/api/game/state" || path == "/api/game/profiles" || path == "/api/game/profile-mods")
-            {
-                return HandleGameProfileRequest(request, path, query);
-            }
+                response = HandleGameProfileRequest(request, path, query);
+            else if (path == "/api/pair/hello") response = HandlePairHello(request);
+            else if (path == "/api/pair/complete") response = HandlePairComplete(request);
+            else if (path == "/api/pair/complete-lan") response = HandlePairCompleteLan(request);
+            else if (path == "/api/pair/unlink") response = HandlePairUnlink(request);
+            else if (path.StartsWith(VoicePathPrefix, StringComparison.Ordinal)) response = HandleVoice(request, path, deviceId);
             else
             {
                 return new HttpResponse
@@ -301,24 +398,27 @@ namespace Funbit.Ets.Telemetry.Server
                     Body = "404 Not Found"
                 };
             }
+
+            if (deviceId != null)
+            {
+                if (removed && _devices.IsRemoved(deviceId))
+                    response.ExtraHeaders[PairHeader] = PairRemoved;
+                else if (!removed && path != "/api/pair/unlink")
+                    TrackDevice(request, deviceId, path, response);
+            }
+            return response;
+        }
+
+        static bool BypassesRemoval(string path)
+        {
+            return path == "/api/pair/hello" || path == "/api/pair/complete" || path == "/api/pair/unlink";
         }
 
         private HttpResponse HandleStatusPage(HttpRequest request)
         {
-            if (request.Method != "GET")
-            {
-                return new HttpResponse
-                {
-                    StatusCode = 405,
-                    StatusText = "Method Not Allowed",
-                    ContentType = "text/plain",
-                    Body = "Method Not Allowed"
-                };
-            }
+            if (request.Method != "GET") return MethodNotAllowed();
 
-            // Use the shared HTML template with bypass notice enabled
-            var html = TelemetryEndpoints.GetStatusPageHtml(showBypassNotice: true);
-
+            var html = TelemetryEndpoints.GetStatusPageHtml();
             return new HttpResponse
             {
                 StatusCode = 200,
@@ -331,21 +431,11 @@ namespace Funbit.Ets.Telemetry.Server
 
         private HttpResponse HandleTelemetryRequest(HttpRequest request)
         {
-            if (request.Method != "GET" && request.Method != "POST")
-            {
-                return new HttpResponse
-                {
-                    StatusCode = 405,
-                    StatusText = "Method Not Allowed",
-                    ContentType = "text/plain",
-                    Body = "Method Not Allowed"
-                };
-            }
+            if (request.Method != "GET" && request.Method != "POST") return MethodNotAllowed();
 
             try
             {
                 var telemetryJson = TelemetryEndpoints.GetEts2TelemetryJson();
-
                 return new HttpResponse
                 {
                     StatusCode = 200,
@@ -358,14 +448,7 @@ namespace Funbit.Ets.Telemetry.Server
             catch (Exception ex)
             {
                 Log.Error("Error getting telemetry data", ex);
-
-                return new HttpResponse
-                {
-                    StatusCode = 500,
-                    StatusText = "Internal Server Error",
-                    ContentType = "text/plain",
-                    Body = "Internal Server Error"
-                };
+                return InternalServerError();
             }
         }
 
@@ -479,6 +562,169 @@ namespace Funbit.Ets.Telemetry.Server
             }
         }
 
+        const string DeviceHeader = "X-TSGPS-Device";
+        const string DeviceNameHeader = "X-TSGPS-Device-Name";
+        const string PairHeader = "X-TSGPS-Pair";
+        const string PairOffer = "offer";
+        const string PairNew = "new";
+        const string PairRemoved = "removed";
+        const string GameRouteHeader = "X-TSGPS-Game-Route";
+
+        void TrackDevice(HttpRequest request, string deviceId, string path, HttpResponse response)
+        {
+            string deviceName = HeaderValue(request.Headers, DeviceNameHeader);
+            bool viaRelay = RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint);
+            var known = _devices.Get(deviceId);
+            bool linked = known?.DeviceKey != null;
+            string method = viaRelay ? ConnectionMethod.Relay : linked ? ConnectionMethod.Direct : ConnectionMethod.Manual;
+            var device = _devices.Touch(deviceId, deviceName, method);
+            if (path == TelemetryEndpoints.TelemetryApiUriPath)
+                _devices.SetWantsGameRoute(device, HeaderValue(request.Headers, GameRouteHeader) == "1");
+            if (!linked && !viaRelay)
+                response.ExtraHeaders[PairHeader] = PairOffer;
+        }
+
+        static string HeaderValue(string[] headers, string name)
+        {
+            var header = headers?.FirstOrDefault(h => h.StartsWith(name + ":", StringComparison.OrdinalIgnoreCase));
+            return header?.Substring(name.Length + 1).Trim();
+        }
+
+        object PcIdentity(byte[] deviceKey)
+        {
+            return new
+            {
+                deviceKey = deviceKey == null ? null : Crypto.Base64Url(deviceKey),
+                pcId = _devices.PcId,
+                name = _pairing.PcName,
+                serverVersion = CloudConfig.ProtocolVersion
+            };
+        }
+
+        private HttpResponse HandlePairHello(HttpRequest request)
+        {
+            if (request.Method != "GET") return MethodNotAllowed();
+            return JsonResponse(PcIdentity(null));
+        }
+
+        private HttpResponse HandlePairComplete(HttpRequest request)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+
+            var req = TryDeserializeBody<PairCompleteRequest>(request);
+            if (req == null || !Crypto.IsHexId(req.DeviceId, 32) || string.IsNullOrEmpty(req.Proof) || string.IsNullOrEmpty(req.Nonce))
+                return JsonResponse(new { error = "invalid_request" }, 400, "Bad Request");
+
+            byte[] secret;
+            if (!_pairing.TryComplete(req.DeviceId, req.Proof, req.Nonce, out secret))
+                return JsonResponse(new { error = "no_session" }, 404, "Not Found");
+
+            bool viaRelay = RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint);
+            var key = _devices.Link(req.DeviceId, req.DeviceName, viaRelay ? ConnectionMethod.Relay : ConnectionMethod.Direct);
+            Log.InfoFormat("Device {0} linked ({1})", req.DeviceId, viaRelay ? "relay" : "LAN");
+            string reply = JsonConvert.SerializeObject(PcIdentity(key), JsonHelper.RestSettings);
+            return JsonResponse(new { env = Crypto.SealEnvelope(secret, reply) });
+        }
+
+        private HttpResponse HandlePairCompleteLan(HttpRequest request)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+            if (RelayTunnelClient.IsTunnelEndpoint(request.RemoteEndpoint))
+                return JsonResponse(new { error = "lan_only" }, 403, "Forbidden");
+
+            var req = TryDeserializeBody<PairCompleteRequest>(request);
+            if (req == null || !Crypto.IsHexId(req.DeviceId, 32))
+                return JsonResponse(new { error = "invalid_request" }, 400, "Bad Request");
+
+            var key = _devices.Link(req.DeviceId, req.DeviceName, ConnectionMethod.Direct);
+            Log.InfoFormat("Device {0} linked (manual IP)", req.DeviceId);
+            return JsonResponse(PcIdentity(key));
+        }
+
+        private HttpResponse HandlePairUnlink(HttpRequest request)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+
+            var req = TryDeserializeBody<PairCompleteRequest>(request);
+            if (req == null || !Crypto.IsHexId(req.DeviceId, 32) || string.IsNullOrEmpty(req.Proof) || string.IsNullOrEmpty(req.Nonce))
+                return JsonResponse(new { error = "invalid_request" }, 400, "Bad Request");
+
+            if (!_devices.Unlink(req.DeviceId, req.Proof, req.Nonce))
+                return JsonResponse(new { error = "not_linked" }, 404, "Not Found");
+            Log.InfoFormat("Device {0} unlinked itself", req.DeviceId);
+            return JsonResponse(new { });
+        }
+
+        private HttpResponse HandleVoice(HttpRequest request, string path, string deviceId)
+        {
+            if (request.Method != "POST") return MethodNotAllowed();
+            VoiceReply reply;
+            switch (path.Substring(VoicePathPrefix.Length))
+            {
+                case "hello": reply = _voice.Hello(deviceId, request.Body); break;
+                case "play": reply = _voice.Play(deviceId, request.Body); break;
+                case "effect": reply = _voice.Effect(deviceId, request.Body); break;
+                case "clips": reply = _voice.Clips(deviceId, request.Body); break;
+                case "stop": reply = _voice.Stop(deviceId, request.Body); break;
+                default:
+                    return new HttpResponse { StatusCode = 404, StatusText = "Not Found", ContentType = "text/plain", Body = "404 Not Found" };
+            }
+            return JsonResponse(reply.Body, reply.Status, StatusText(reply.Status));
+        }
+
+        static string StatusText(int status)
+        {
+            switch (status)
+            {
+                case 200: return "OK";
+                case 400: return "Bad Request";
+                case 401: return "Unauthorized";
+                case 403: return "Forbidden";
+                case 409: return "Conflict";
+                case 410: return "Gone";
+                default: return "Service Unavailable";
+            }
+        }
+
+        static T TryDeserializeBody<T>(HttpRequest request) where T : class
+        {
+            if (string.IsNullOrEmpty(request.Body)) return null;
+            try
+            {
+                return JsonConvert.DeserializeObject<T>(request.Body, JsonHelper.RestSettings);
+            }
+            catch (Exception ex)
+            {
+                Log.WarnFormat("Failed to deserialize {0} body: {1}", typeof(T).Name, ex.Message);
+                return null;
+            }
+        }
+
+        static HttpResponse JsonResponse(object payload, int statusCode = 200, string statusText = "OK")
+        {
+            string json = JsonConvert.SerializeObject(payload, JsonHelper.RestSettings);
+            return new HttpResponse
+            {
+                StatusCode = statusCode,
+                StatusText = statusText,
+                ContentType = "application/json; charset=utf-8",
+                Body = json,
+                CacheControl = "no-cache"
+            };
+        }
+
+        static HttpResponse MethodNotAllowed() => new HttpResponse
+        {
+            StatusCode = 405, StatusText = "Method Not Allowed",
+            ContentType = "text/plain", Body = "Method Not Allowed"
+        };
+
+        static HttpResponse InternalServerError() => new HttpResponse
+        {
+            StatusCode = 500, StatusText = "Internal Server Error",
+            ContentType = "text/plain", Body = "Internal Server Error"
+        };
+
         private async Task SendHttpResponseAsync(NetworkStream stream, HttpResponse response, bool closeConnection = false)
         {
             var bodyBytes = Encoding.UTF8.GetBytes(response.Body ?? "");
@@ -503,19 +749,19 @@ namespace Funbit.Ets.Telemetry.Server
                 responseBuilder.AppendFormat("Cache-Control: {0}\r\n", response.CacheControl);
             }
 
+            foreach (var header in response.ExtraHeaders)
+            {
+                responseBuilder.AppendFormat("{0}: {1}\r\n", header.Key, header.Value);
+            }
+
             responseBuilder.Append("\r\n");
 
             var headerBytes = Encoding.UTF8.GetBytes(responseBuilder.ToString());
+            var responseBytes = new byte[headerBytes.Length + bodyBytes.Length];
+            Buffer.BlockCopy(headerBytes, 0, responseBytes, 0, headerBytes.Length);
+            Buffer.BlockCopy(bodyBytes, 0, responseBytes, headerBytes.Length, bodyBytes.Length);
 
-            // Send headers
-            await stream.WriteAsync(headerBytes, 0, headerBytes.Length);
-
-            // Send body
-            if (bodyBytes.Length > 0)
-            {
-                await stream.WriteAsync(bodyBytes, 0, bodyBytes.Length);
-            }
-
+            await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
             await stream.FlushAsync();
         }
 
@@ -532,6 +778,8 @@ namespace Funbit.Ets.Telemetry.Server
             public string Method { get; set; }
             public string Path { get; set; }
             public string[] Headers { get; set; }
+            public string Body { get; set; }
+            public string RemoteEndpoint { get; set; }
         }
 
         private class HttpResponse
@@ -541,6 +789,15 @@ namespace Funbit.Ets.Telemetry.Server
             public string ContentType { get; set; }
             public string Body { get; set; }
             public string CacheControl { get; set; }
+            public Dictionary<string, string> ExtraHeaders { get; } = new Dictionary<string, string>();
+        }
+
+        private class PairCompleteRequest
+        {
+            public string DeviceId { get; set; }
+            public string DeviceName { get; set; }
+            public string Proof { get; set; }
+            public string Nonce { get; set; }
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Windows.Forms;
 using Funbit.Ets.Telemetry.Server.Helpers;
+using Funbit.Ets.Telemetry.Server.Ui;
 using Microsoft.Win32;
 
 namespace Funbit.Ets.Telemetry.Server.Setup
@@ -32,16 +33,25 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             LocalDllMissing     // Shipped plugin DLLs are missing — server install is corrupted.
         }
 
+        static readonly Dictionary<string, (DateTime stamp, long length, string md5)> Md5Cache = new Dictionary<string, (DateTime, long, string)>();
+
         internal static string ComputeMd5(string fileName)
         {
-            if (!File.Exists(fileName))
+            var info = new FileInfo(fileName);
+            if (!info.Exists)
                 return null;
-            using (var provider = new MD5CryptoServiceProvider())
+            lock (Md5Cache)
             {
-                var bytes = File.ReadAllBytes(fileName);
-                var hash = provider.ComputeHash(bytes);
-                return string.Concat(hash.Select(b => $"{b:x02}"));
+                (DateTime stamp, long length, string md5) cached;
+                if (Md5Cache.TryGetValue(fileName, out cached) && cached.stamp == info.LastWriteTimeUtc && cached.length == info.Length)
+                    return cached.md5;
             }
+            string hash;
+            using (var provider = new MD5CryptoServiceProvider())
+                hash = string.Concat(provider.ComputeHash(File.ReadAllBytes(fileName)).Select(b => $"{b:x02}"));
+            lock (Md5Cache)
+                Md5Cache[fileName] = (info.LastWriteTimeUtc, info.Length, hash);
+            return hash;
         }
 
         /// <summary>
@@ -56,8 +66,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             var localX86Md5 = ComputeMd5(LocalX86PluginPath);
             if (localX64Md5 == null || localX86Md5 == null)
             {
-                Log.Error("Shipped plugin DLLs are missing from the server install directory. " +
-                    "The TruckSim GPS Telemetry Server installation may be corrupted or the " +
+                Log.Error("Shipped plugin DLLs are missing from the install directory. " +
+                    "The TruckSim GPS PC Telemetry installation may be corrupted or the " +
                     "files may have been quarantined by security software.");
                 return PluginState.LocalDllMissing;
             }
@@ -415,17 +425,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                     if (!Program.ForceSetupMode)
                         return;
 
-                    var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-
-                    var confirmResult = MessageBox.Show(owner,
-                        $">>> {gameFullName} <<<" + Environment.NewLine +
-                        "Installation is currently configured at:" + Environment.NewLine + Environment.NewLine +
-                        GamePath + Environment.NewLine + Environment.NewLine +
-                        @"Do you want to keep using this installation path?" + Environment.NewLine + Environment.NewLine +
-                        @"[YES]    = Keep this path and continue" + Environment.NewLine +
-                        @"[NO]     = Browse for a different location",
-                        $"{gameFullName} Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
-                        MessageBoxDefaultButton.Button1);
+                    var confirmResult = DarkMessageBox.Ask(owner, L.Get("plugin.keep_path", GameDirectoryName, GamePath),
+                        L.Get("plugin.game_setup_title", GameDirectoryName), L.Get("plugin.keep_path_yes"), L.Get("plugin.keep_path_no"));
 
                     if (confirmResult == DialogResult.Yes)
                     {
@@ -446,16 +447,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             
             void ShowDetectionFailedAndBrowse(IWin32Window owner)
             {
-                var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-                
-                var detectionResult = MessageBox.Show(owner,
-                    $">>> {gameFullName} <<<" + Environment.NewLine +
-                    "Installation could not be automatically detected." + Environment.NewLine + Environment.NewLine +
-                    $"Do you want to manually locate your {gameFullName} installation?" + Environment.NewLine + Environment.NewLine +
-                    @"[YES]    = Browse to find installation folder" + Environment.NewLine +
-                    @"[NO]     = Skip this game (you can configure it later)",
-                    $"{gameFullName} Setup", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
-                    MessageBoxDefaultButton.Button1);
+                var detectionResult = DarkMessageBox.Ask(owner, L.Get("plugin.not_detected", GameDirectoryName),
+                    L.Get("plugin.game_setup_title", GameDirectoryName), L.Get("plugin.not_detected_browse"), L.Get("plugin.not_detected_skip"));
                     
                 if (detectionResult == DialogResult.No)
                 {
@@ -468,12 +461,10 @@ namespace Funbit.Ets.Telemetry.Server.Setup
             
             void BrowseForPath(IWin32Window owner)
             {
-                var gameFullName = _gameName == "ETS2" ? "Euro Truck Simulator 2" : "American Truck Simulator";
-                
                 while (!IsPathValid())
                 {
                     var browser = new FolderBrowserDialog();
-                    browser.Description = $"Select {gameFullName} installation folder";
+                    browser.Description = L.Get("plugin.browse_description", GameDirectoryName);
                     browser.ShowNewFolderButton = false;
                     var result = browser.ShowDialog(owner);
                     
@@ -486,14 +477,8 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                     GamePath = browser.SelectedPath;
                     
                     if (!IsPathValid())
-                    {
-                        string executableName = _gameName == "ETS2" ? "eurotrucks2.exe" : "amtrucks.exe";
-                        MessageBox.Show(owner,
-                            $">>> {gameFullName} <<<" + Environment.NewLine +
-                            "The selected folder does not appear to be a valid installation." + Environment.NewLine + Environment.NewLine +
-                            $"Please select the main {gameFullName} folder that contains 'base.scs' and 'bin' folder.",
-                            "Invalid Path", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                    }
+                        DarkMessageBox.Show(owner, L.Get("plugin.invalid_folder", GameDirectoryName), L.Get("plugin.invalid_folder_title"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             

@@ -1,6 +1,8 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Funbit.Ets.Telemetry.Server.Services;
 using Newtonsoft.Json;
 
 namespace Funbit.Ets.Telemetry.Server.Helpers
@@ -16,14 +18,32 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         public bool FirewallSetupHadErrors { get; set; }
         public bool UrlReservationSetupHadErrors { get; set; }
 
+        public string PcId { get; set; }
+        public string StandbyToken { get; set; }
+        public StandbyPolicy StandbyPolicy { get; set; } = new StandbyPolicy();
+        public List<LinkedDevice> LinkedDevices { get; set; } = new List<LinkedDevice>();
+        public List<RemovedDevice> RemovedDevices { get; set; } = new List<RemovedDevice>();
+        public string PreferredRelayUrl { get; set; }
+        public string Language { get; set; }
+#if DEBUG
+        public string ApiEnvironment { get; set; }
+#endif
+
         #endregion
 
+        // Folder name from before the PC Telemetry rename; renaming it would lose every PC's settings and linked devices.
         const string ApplicationName = "TruckSim GPS Telemetry Server";
         const string SettingsName = "Settings.json";
 
         public static readonly string SettingsDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ApplicationName);
         static readonly string SettingsFileName = Path.Combine(SettingsDirectory, SettingsName);
+
+        [JsonIgnore]
+        public string FilePath { get; private set; }
+
+        [JsonIgnore]
+        public readonly object Sync = new object();
 
         public static void Clear()
         {
@@ -33,30 +53,63 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
                 Directory.Delete(SettingsDirectory);
         }
 
-        static Settings Load()
+        public static Settings Load(string path)
         {
-            if (!File.Exists(SettingsFileName))
-                return new Settings();
-            try
+            Settings settings = null;
+            if (File.Exists(path))
             {
-                return JsonConvert.DeserializeObject<Settings>(
-                    File.ReadAllText(SettingsFileName, Encoding.UTF8)) ?? new Settings();
+                try
+                {
+                    settings = JsonConvert.DeserializeObject<Settings>(File.ReadAllText(path, Encoding.UTF8));
+                }
+                catch
+                {
+                    File.Copy(path, path + ".broken", true);
+                }
             }
-            catch
+            settings = settings ?? new Settings();
+            settings.FilePath = path;
+            if (settings.PcId == null)
             {
-                return new Settings();
+                settings.PcId = Crypto.RandomHexId();
+                settings.Save();
             }
+            return settings;
         }
 
         public void Save()
         {
-            if (!Directory.Exists(SettingsDirectory))
-                Directory.CreateDirectory(SettingsDirectory);
-            File.WriteAllText(SettingsFileName, 
-                JsonConvert.SerializeObject(this, Formatting.Indented), Encoding.UTF8);
+            lock (Sync)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
+                string temp = FilePath + ".tmp";
+                File.WriteAllText(temp, JsonConvert.SerializeObject(this, Formatting.Indented), Encoding.UTF8);
+                if (File.Exists(FilePath))
+                    File.Replace(temp, FilePath, null);
+                else
+                    File.Move(temp, FilePath);
+            }
         }
 
-        static readonly Lazy<Settings> LazyInstance = new Lazy<Settings>(Load);
-        public static readonly Settings Instance = LazyInstance.Value;
+        static readonly Lazy<Settings> LazyInstance = new Lazy<Settings>(() => Load(SettingsFileName));
+        public static Settings Instance => LazyInstance.Value;
+    }
+
+    public class LinkedDevice
+    {
+        public string DeviceId { get; set; }
+        public string DeviceKey { get; set; }
+        public string Name { get; set; }
+        public DateTime AddedAt { get; set; }
+        public DateTime LastSeenAt { get; set; }
+        public string LastMethod { get; set; }
+        [JsonIgnore]
+        public DateTime GameRouteWantedAt { get; set; }
+    }
+
+    public class RemovedDevice
+    {
+        public string DeviceId { get; set; }
+        public DateTime Until { get; set; }
     }
 }

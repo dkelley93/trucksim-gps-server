@@ -86,7 +86,7 @@ namespace SIIDecryptSharp
         public static string DecodeUTF8String(ref byte[] bytes, ref int offset)
         {
             var length = Convert.ToInt32(DecodeUInt32(ref bytes, ref offset));
-            var result = System.Text.Encoding.UTF8.GetString(bytes.Skip(offset).Take(length).ToArray());
+            var result = System.Text.Encoding.UTF8.GetString(bytes, offset, length);
             offset += length;
             return result;
         }
@@ -449,7 +449,7 @@ namespace SIIDecryptSharp
         {
             var result = new IDComplexType();
             result.Value = "";
-            result.PartCount = bytes.Skip(offset).Take(1).First();
+            result.PartCount = bytes[offset];
             offset += 1;
             if(result.PartCount == 0xFF)
             {

@@ -6,13 +6,15 @@ namespace Funbit.Ets.Telemetry.Server.Data
     // Top-level REST v1 payload
     public class TelemetryV1
     {
-        public int ServerVersion { get; set; } = 6;
+        public int ServerVersion { get; set; } = Helpers.CloudConfig.ProtocolVersion;
         public GameV1 Game { get; set; }
         public TruckV1 Truck { get; set; }
         public List<TrailerV1> Trailers { get; set; }
         public JobV1 Job { get; set; }
         public NavigationV1 Navigation { get; set; }
         public GameplayV1 Gameplay { get; set; }
+        public GpsRouteV1 GpsRoute { get; set; }
+        public SelectedJobV1 SelectedJob { get; set; }
     }
 
     public class GameV1
@@ -158,6 +160,31 @@ namespace Funbit.Ets.Telemetry.Server.Data
         public float CargoMass { get; set; }
         public int UnitCount { get; set; }
         public string JobMarket { get; set; }
+    }
+
+    public class GpsRouteV1
+    {
+        public DateTime SavedAt { get; set; }
+        public List<GpsWaypointV1> Waypoints { get; set; }
+    }
+
+    public class GpsWaypointV1
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float Z { get; set; }
+    }
+
+    public class SelectedJobV1
+    {
+        public string CargoId { get; set; }
+        public string SourceCityId { get; set; }
+        public string SourceCompanyId { get; set; }
+        public string DestinationCityId { get; set; }
+        public string DestinationCompanyId { get; set; }
+        public int PlannedDistanceKm { get; set; }
+        public int UnitCount { get; set; }
+        public string Market { get; set; }
     }
 
     public class NavigationV1

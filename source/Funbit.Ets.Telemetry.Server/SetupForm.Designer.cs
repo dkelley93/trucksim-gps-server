@@ -29,185 +29,120 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SetupForm));
-            this.okButton = new System.Windows.Forms.Button();
-            this.groupBox = new System.Windows.Forms.GroupBox();
-            this.urlReservationStatusImage = new System.Windows.Forms.PictureBox();
-            this.urlReservationStatusLabel = new System.Windows.Forms.Label();
-            this.firewallStatusImage = new System.Windows.Forms.PictureBox();
-            this.firewallStatusLabel = new System.Windows.Forms.Label();
-            this.pluginStatusImage = new System.Windows.Forms.PictureBox();
-            this.pluginStatusLabel = new System.Windows.Forms.Label();
-            this.vcredistStatusImage = new System.Windows.Forms.PictureBox();
+            this.okButton = new Funbit.Ets.Telemetry.Server.Ui.DarkButton();
+            this.statusCard = new Funbit.Ets.Telemetry.Server.Ui.Card();
+            this.statusTitle = new System.Windows.Forms.Label();
+            this.vcredistStatusImage = new StepIcon();
             this.vcredistStatusLabel = new System.Windows.Forms.Label();
-            this.helpLabel = new System.Windows.Forms.LinkLabel();
-            this.groupBox.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.urlReservationStatusImage)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.firewallStatusImage)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.pluginStatusImage)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.vcredistStatusImage)).BeginInit();
+            this.pluginStatusImage = new StepIcon();
+            this.pluginStatusLabel = new System.Windows.Forms.Label();
+            this.firewallStatusImage = new StepIcon();
+            this.firewallStatusLabel = new System.Windows.Forms.Label();
+            this.urlReservationStatusImage = new StepIcon();
+            this.urlReservationStatusLabel = new System.Windows.Forms.Label();
+            this.footer = new System.Windows.Forms.Panel();
+            this.helpLabel = new Funbit.Ets.Telemetry.Server.Ui.LinkText();
+            this.statusCard.SuspendLayout();
+            this.footer.SuspendLayout();
             this.SuspendLayout();
             //
-            // okButton
+            // statusCard
             //
-            this.okButton.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.okButton.Location = new System.Drawing.Point(253, 273);
-            this.okButton.Name = "okButton";
-            this.okButton.Size = new System.Drawing.Size(127, 42);
-            this.okButton.TabIndex = 2;
-            this.okButton.Text = "Install";
-            this.okButton.UseVisualStyleBackColor = true;
-            this.okButton.Click += new System.EventHandler(this.okButton_Click);
+            this.statusCard.Controls.Add(this.statusTitle);
+            this.statusCard.Controls.Add(this.vcredistStatusImage);
+            this.statusCard.Controls.Add(this.vcredistStatusLabel);
+            this.statusCard.Controls.Add(this.pluginStatusImage);
+            this.statusCard.Controls.Add(this.pluginStatusLabel);
+            this.statusCard.Controls.Add(this.firewallStatusImage);
+            this.statusCard.Controls.Add(this.firewallStatusLabel);
+            this.statusCard.Controls.Add(this.urlReservationStatusImage);
+            this.statusCard.Controls.Add(this.urlReservationStatusLabel);
+            this.statusCard.Location = new System.Drawing.Point(16, 16);
+            this.statusCard.Size = new System.Drawing.Size(360, 236);
             //
-            // groupBox
+            // statusTitle
             //
-            this.groupBox.Controls.Add(this.urlReservationStatusImage);
-            this.groupBox.Controls.Add(this.urlReservationStatusLabel);
-            this.groupBox.Controls.Add(this.firewallStatusImage);
-            this.groupBox.Controls.Add(this.firewallStatusLabel);
-            this.groupBox.Controls.Add(this.pluginStatusImage);
-            this.groupBox.Controls.Add(this.pluginStatusLabel);
-            this.groupBox.Controls.Add(this.vcredistStatusImage);
-            this.groupBox.Controls.Add(this.vcredistStatusLabel);
-            this.groupBox.Font = new System.Drawing.Font("Segoe UI", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.groupBox.Location = new System.Drawing.Point(12, 9);
-            this.groupBox.Name = "groupBox";
-            this.groupBox.Size = new System.Drawing.Size(368, 253);
-            this.groupBox.TabIndex = 3;
-            this.groupBox.TabStop = false;
-            this.groupBox.Text = "Setup status";
+            this.statusTitle.AutoSize = true;
+            this.statusTitle.BackColor = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Card;
+            this.statusTitle.Font = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Title;
+            this.statusTitle.ForeColor = System.Drawing.Color.White;
+            this.statusTitle.Location = new System.Drawing.Point(16, 14);
             //
-            // urlReservationStatusImage
+            // step rows
             //
-            this.urlReservationStatusImage.Image = global::Funbit.Ets.Telemetry.Server.Properties.Resources.StatusIcon;
-            this.urlReservationStatusImage.InitialImage = null;
-            this.urlReservationStatusImage.Location = new System.Drawing.Point(23, 193);
-            this.urlReservationStatusImage.Name = "urlReservationStatusImage";
-            this.urlReservationStatusImage.Size = new System.Drawing.Size(40, 40);
-            this.urlReservationStatusImage.TabIndex = 7;
-            this.urlReservationStatusImage.TabStop = false;
+            this.vcredistStatusImage.Location = new System.Drawing.Point(16, 52);
+            this.vcredistStatusLabel.Location = new System.Drawing.Point(52, 55);
+            this.pluginStatusImage.Location = new System.Drawing.Point(16, 96);
+            this.pluginStatusLabel.Location = new System.Drawing.Point(52, 99);
+            this.firewallStatusImage.Location = new System.Drawing.Point(16, 140);
+            this.firewallStatusLabel.Location = new System.Drawing.Point(52, 143);
+            this.urlReservationStatusImage.Location = new System.Drawing.Point(16, 184);
+            this.urlReservationStatusLabel.Location = new System.Drawing.Point(52, 187);
+            foreach (var label in new[] { this.vcredistStatusLabel, this.pluginStatusLabel, this.firewallStatusLabel, this.urlReservationStatusLabel })
+            {
+                label.AutoSize = true;
+                label.MaximumSize = new System.Drawing.Size(292, 0);
+                label.BackColor = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Card;
+                label.ForeColor = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Text;
+            }
             //
-            // urlReservationStatusLabel
+            // footer
             //
-            this.urlReservationStatusLabel.AutoSize = true;
-            this.urlReservationStatusLabel.Font = new System.Drawing.Font("Segoe UI Light", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.urlReservationStatusLabel.Location = new System.Drawing.Point(78, 203);
-            this.urlReservationStatusLabel.Name = "urlReservationStatusLabel";
-            this.urlReservationStatusLabel.Size = new System.Drawing.Size(99, 17);
-            this.urlReservationStatusLabel.TabIndex = 6;
-            this.urlReservationStatusLabel.Text = "ACL rule for URL";
-            //
-            // firewallStatusImage
-            //
-            this.firewallStatusImage.Image = global::Funbit.Ets.Telemetry.Server.Properties.Resources.StatusIcon;
-            this.firewallStatusImage.InitialImage = null;
-            this.firewallStatusImage.Location = new System.Drawing.Point(23, 141);
-            this.firewallStatusImage.Name = "firewallStatusImage";
-            this.firewallStatusImage.Size = new System.Drawing.Size(40, 40);
-            this.firewallStatusImage.TabIndex = 5;
-            this.firewallStatusImage.TabStop = false;
-            //
-            // firewallStatusLabel
-            //
-            this.firewallStatusLabel.AutoSize = true;
-            this.firewallStatusLabel.Font = new System.Drawing.Font("Segoe UI Light", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.firewallStatusLabel.Location = new System.Drawing.Point(78, 151);
-            this.firewallStatusLabel.Name = "firewallStatusLabel";
-            this.firewallStatusLabel.Size = new System.Drawing.Size(74, 17);
-            this.firewallStatusLabel.TabIndex = 4;
-            this.firewallStatusLabel.Text = "Firewall rule";
-            //
-            // pluginStatusImage
-            //
-            this.pluginStatusImage.Image = global::Funbit.Ets.Telemetry.Server.Properties.Resources.StatusIcon;
-            this.pluginStatusImage.InitialImage = null;
-            this.pluginStatusImage.Location = new System.Drawing.Point(23, 89);
-            this.pluginStatusImage.Name = "pluginStatusImage";
-            this.pluginStatusImage.Size = new System.Drawing.Size(40, 40);
-            this.pluginStatusImage.TabIndex = 3;
-            this.pluginStatusImage.TabStop = false;
-            //
-            // pluginStatusLabel
-            //
-            this.pluginStatusLabel.AutoSize = true;
-            this.pluginStatusLabel.Font = new System.Drawing.Font("Segoe UI Light", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.pluginStatusLabel.Location = new System.Drawing.Point(78, 99);
-            this.pluginStatusLabel.Name = "pluginStatusLabel";
-            this.pluginStatusLabel.Size = new System.Drawing.Size(156, 17);
-            this.pluginStatusLabel.TabIndex = 2;
-            this.pluginStatusLabel.Text = "ETS2/ATS telemetry plugin";
-            //
-            // vcredistStatusImage
-            //
-            this.vcredistStatusImage.Image = global::Funbit.Ets.Telemetry.Server.Properties.Resources.StatusIcon;
-            this.vcredistStatusImage.InitialImage = null;
-            this.vcredistStatusImage.Location = new System.Drawing.Point(23, 38);
-            this.vcredistStatusImage.Name = "vcredistStatusImage";
-            this.vcredistStatusImage.Size = new System.Drawing.Size(40, 40);
-            this.vcredistStatusImage.TabIndex = 1;
-            this.vcredistStatusImage.TabStop = false;
-            //
-            // vcredistStatusLabel
-            //
-            this.vcredistStatusLabel.AutoSize = true;
-            this.vcredistStatusLabel.Font = new System.Drawing.Font("Segoe UI Light", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.vcredistStatusLabel.Location = new System.Drawing.Point(78, 48);
-            this.vcredistStatusLabel.Name = "vcredistStatusLabel";
-            this.vcredistStatusLabel.Size = new System.Drawing.Size(190, 17);
-            this.vcredistStatusLabel.TabIndex = 0;
-            this.vcredistStatusLabel.Text = "Visual C++ 2022 Redistributable";
+            this.footer.BackColor = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Header;
+            this.footer.Controls.Add(this.helpLabel);
+            this.footer.Controls.Add(this.okButton);
+            this.footer.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.footer.Size = new System.Drawing.Size(392, 64);
             //
             // helpLabel
             //
-            this.helpLabel.AutoSize = true;
-            this.helpLabel.Font = new System.Drawing.Font("Segoe UI Light", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.helpLabel.Location = new System.Drawing.Point(15, 286);
-            this.helpLabel.Name = "helpLabel";
-            this.helpLabel.Size = new System.Drawing.Size(34, 17);
+            this.helpLabel.Location = new System.Drawing.Point(22, 24);
             this.helpLabel.TabIndex = 17;
             this.helpLabel.TabStop = true;
-            this.helpLabel.Text = "Help";
             this.helpLabel.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.helpLabel_LinkClicked);
+            //
+            // okButton
+            //
+            this.okButton.BackColor = Funbit.Ets.Telemetry.Server.Ui.DarkTheme.Header;
+            this.okButton.Location = new System.Drawing.Point(256, 15);
+            this.okButton.Size = new System.Drawing.Size(120, 34);
+            this.okButton.TabIndex = 2;
+            this.okButton.Click += new System.EventHandler(this.okButton_Click);
             //
             // SetupForm
             //
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(392, 326);
-            this.Controls.Add(this.helpLabel);
-            this.Controls.Add(this.groupBox);
-            this.Controls.Add(this.okButton);
+            this.ClientSize = new System.Drawing.Size(392, 332);
+            this.Controls.Add(this.statusCard);
+            this.Controls.Add(this.footer);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.Name = "SetupForm";
+            this.ShowIcon = true;
+            this.ShowInTaskbar = true;
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "TruckSim GPS Telemetry Server Setup";
             this.TopMost = true;
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.SetupForm_FormClosing);
             this.Load += new System.EventHandler(this.SetupForm_Load);
-            this.groupBox.ResumeLayout(false);
-            this.groupBox.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.urlReservationStatusImage)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.firewallStatusImage)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.pluginStatusImage)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.vcredistStatusImage)).EndInit();
+            this.statusCard.ResumeLayout(false);
+            this.statusCard.PerformLayout();
+            this.footer.ResumeLayout(false);
+            this.footer.PerformLayout();
             this.ResumeLayout(false);
-            this.PerformLayout();
         }
 
         #endregion
 
-        private System.Windows.Forms.Button okButton;
-        private System.Windows.Forms.GroupBox groupBox;
-        private System.Windows.Forms.PictureBox vcredistStatusImage;
+        private Funbit.Ets.Telemetry.Server.Ui.DarkButton okButton;
+        private Funbit.Ets.Telemetry.Server.Ui.Card statusCard;
+        private System.Windows.Forms.Label statusTitle;
+        private StepIcon vcredistStatusImage;
         private System.Windows.Forms.Label vcredistStatusLabel;
-        private System.Windows.Forms.PictureBox pluginStatusImage;
+        private StepIcon pluginStatusImage;
         private System.Windows.Forms.Label pluginStatusLabel;
-        private System.Windows.Forms.PictureBox firewallStatusImage;
+        private StepIcon firewallStatusImage;
         private System.Windows.Forms.Label firewallStatusLabel;
-        private System.Windows.Forms.PictureBox urlReservationStatusImage;
+        private StepIcon urlReservationStatusImage;
         private System.Windows.Forms.Label urlReservationStatusLabel;
-        private System.Windows.Forms.LinkLabel helpLabel;
+        private System.Windows.Forms.Panel footer;
+        private Funbit.Ets.Telemetry.Server.Ui.LinkText helpLabel;
     }
 }

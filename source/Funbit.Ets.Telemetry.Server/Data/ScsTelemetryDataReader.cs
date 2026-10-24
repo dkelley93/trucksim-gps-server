@@ -1,18 +1,31 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Funbit.Ets.Telemetry.Server.Helpers;
 using SCSSdkClient;
 using SCSSdkClient.Object;
 
 namespace Funbit.Ets.Telemetry.Server.Data
 {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GpsSyncZone
+    {
+        public uint PressRequest;
+        public uint PressAck;
+        public uint PressCount;
+        public uint InputActive;
+    }
+
     public class ScsTelemetryDataReader : IDisposable
     {
         const string ScsTelemetryMapName = "Local\\TSGPSTelemetry";
+        public const long GpsSyncOffset = 30720;
 
         readonly SharedMemory _sharedMemory = new SharedMemory();
         readonly object _lock = new object();
+        SCSTelemetry _sample;
+        DateTime _sampledAt = DateTime.MinValue;
         bool _lastTruckDelivered;
         bool _lastCarDelivered;
         bool _carDeliveredLatest;
@@ -28,15 +41,46 @@ namespace Funbit.Ets.Telemetry.Server.Data
 
         public bool IsConnected => _sharedMemory.Hooked;
 
+        public static bool OnJob(SCSTelemetry scs) => scs.SpecialEventsValues.OnJob || scs.CarJobValues.OnJob;
+
+        public SCSTelemetry Sample(TimeSpan maxAge)
+        {
+            lock (_lock)
+            {
+                var now = DateTime.UtcNow;
+                var age = now - _sampledAt;
+                if (age >= maxAge || age < TimeSpan.Zero)
+                {
+                    // Plugin can leave SdkActive=true after a hard crash; trust the process scan.
+                    _sample = Ets2ProcessHelper.IsEts2Running ? _sharedMemory.Update<SCSTelemetry>() : null;
+                    _sampledAt = now;
+                }
+                return _sample;
+            }
+        }
+
+        public GpsSyncZone ReadGpsSync()
+        {
+            lock (_lock)
+                return _sharedMemory.Read<GpsSyncZone>(GpsSyncOffset);
+        }
+
+        public GpsSyncZone RequestQuickSave()
+        {
+            lock (_lock)
+            {
+                var zone = _sharedMemory.Read<GpsSyncZone>(GpsSyncOffset);
+                zone.PressRequest++;
+                _sharedMemory.Write(GpsSyncOffset, zone.PressRequest);
+                return zone;
+            }
+        }
+
         public TelemetryV1 Read()
         {
             lock (_lock)
             {
-                var scs = _sharedMemory.Update<SCSTelemetry>();
-
-                // Plugin can leave SdkActive=true after a hard crash; trust the process scan.
-                if (!Ets2ProcessHelper.IsEts2Running)
-                    scs = null;
+                var scs = Sample(TimeSpan.Zero);
 
                 var game = new GameV1
                 {
@@ -45,7 +89,7 @@ namespace Funbit.Ets.Telemetry.Server.Data
                     Time = scs?.CommonValues?.GameTime?.Date ?? DateTime.MinValue,
                     Paused = scs?.Paused ?? false,
                     Version = scs != null ? $"{scs.GameVersion.Major}.{scs.GameVersion.Minor}" : null,
-                    GameProductVersion = Ets2ProcessHelper.LastRunningGameProductVersion,
+                    GameProductVersion = Ets2ProcessHelper.LastRunningGameProductVersion ?? TruckersMpWatcher.LoggedGameVersion,
                     TelemetryPluginVersion = scs?.DllVersion.ToString(),
                     TimeScale = scs?.CommonValues?.Scale ?? 0f,
                     NextRestStopTime = scs?.CommonValues?.NextRestStopTime?.Date ?? DateTime.MinValue
@@ -74,16 +118,22 @@ namespace Funbit.Ets.Telemetry.Server.Data
                 }
                 if (scs?.SdkActive == true)
                     MergeCarJobDelivery(scs, gameplay);
+                var published = GpsTargetWatcher.Published;
+                var gps = scs?.SdkActive == true && published?.OnJob == OnJob(scs)
+                    ? published
+                    : null;
 
                 return new TelemetryV1
                 {
-                    ServerVersion = 6,
+                    ServerVersion = CloudConfig.ProtocolVersion,
                     Game = game,
                     Truck = truck,
                     Trailers = trailers,
                     Job = job,
                     Navigation = nav,
-                    Gameplay = gameplay
+                    Gameplay = gameplay,
+                    GpsRoute = gps?.Route,
+                    SelectedJob = gps?.SelectedJob
                 };
             }
         }

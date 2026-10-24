@@ -1,13 +1,17 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 
 namespace Funbit.Ets.Telemetry.Server.Helpers
 {
     public static class Ets2ProcessHelper
     {
+        static readonly log4net.ILog Log = log4net.LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+
         static long _lastCheckTime;
+        static int _scanning;
         static bool _cachedRunningFlag;
         static int _lastProcessId;
 
@@ -28,100 +32,80 @@ namespace Funbit.Ets.Telemetry.Server.Helpers
         /// </summary>
         public static string LastRunningGameProductVersion { get; set; }
 
-        /// <summary>
-        /// Checks whether ETS2 game process is running right now. The maximum check frequency is restricted to 1 second.
-        /// </summary>
-        /// <returns>True if ETS2 process is run, false otherwise.</returns>
         public static bool IsEts2Running
         {
             get
             {
-                if (DateTime.Now - new DateTime(Interlocked.Read(ref _lastCheckTime)) > TimeSpan.FromSeconds(1))
+                long last = Interlocked.Read(ref _lastCheckTime);
+                if (last == 0)
+                    Scan();
+                else if (Stopwatch.GetTimestamp() - last > Stopwatch.Frequency && Interlocked.CompareExchange(ref _scanning, 1, 0) == 0)
+                    ThreadPool.QueueUserWorkItem(_ => Scan());
+                return _cachedRunningFlag;
+            }
+        }
+
+        static void Scan()
+        {
+            try
+            {
+                var processes = Process.GetProcesses();
+                bool running = false;
+                foreach (var process in processes)
                 {
-                    Interlocked.Exchange(ref _lastCheckTime, DateTime.Now.Ticks);
-                    var processes = Process.GetProcesses();
-                    foreach (Process process in processes)
+                    // ProcessName only: MainWindowTitle is mutated by third-party overlays (VTLog) and localized game builds.
+                    if (running || process.ProcessName != "eurotrucks2" && process.ProcessName != "amtrucks")
+                        continue;
+                    running = true;
+                    LastRunningGameName = process.ProcessName == "eurotrucks2" ? "ETS2" : "ATS";
+                    if (process.Id != _lastProcessId)
                     {
-                        try
-                        {
-                            // ProcessName only — MainWindowTitle is mutated by third-party
-                            // overlays (VTLog) and localized game builds, both of which broke
-                            // the previous StartsWith("Euro Truck Simulator 2") check.
-                            bool running = process.ProcessName == "eurotrucks2" ||
-                                           process.ProcessName == "amtrucks";
-                            if (running)
-                            {
-                                _cachedRunningFlag = true;
-                                LastRunningGameName = process.ProcessName == "eurotrucks2" ? "ETS2" : "ATS";
-
-                                int currentPid = process.Id;
-
-                                // Only extract path if this is a new process instance (optimization)
-                                if (currentPid != _lastProcessId)
-                                {
-                                    // Try to get the game installation path
-                                    try
-                                    {
-                                        string exePath = process.MainModule.FileName;
-                                        string exeDir = Path.GetDirectoryName(exePath);
-
-                                        // The exe is typically in bin\win_x64 or bin\win_x86, so we need to go up to the game root
-                                        // Example: F:\SteamLibrary\steamapps\common\American Truck Simulator\bin\win_x64\amtrucks.exe
-                                        // We want: F:\SteamLibrary\steamapps\common\American Truck Simulator
-
-                                        string gameRoot = null;
-                                        DirectoryInfo currentDir = new DirectoryInfo(exeDir);
-
-                                        // Go up directories until we find one with base.scs and bin folder
-                                        while (currentDir != null && currentDir.Parent != null)
-                                        {
-                                            string testPath = currentDir.FullName;
-                                            string baseScsPath = Path.Combine(testPath, "base.scs");
-                                            string binPath = Path.Combine(testPath, "bin");
-
-                                            if (File.Exists(baseScsPath) && Directory.Exists(binPath))
-                                            {
-                                                gameRoot = testPath;
-                                                break;
-                                            }
-
-                                            currentDir = currentDir.Parent;
-                                        }
-
-                                        LastRunningGamePath = gameRoot;
-                                        LastRunningGameProductVersion = FileVersionInfo.GetVersionInfo(exePath).ProductVersion;
-#if DEBUG
-                                        Console.WriteLine($"PROCESS DEBUG: Exe path: '{exePath}'");
-                                        Console.WriteLine($"PROCESS DEBUG: Game root: '{LastRunningGamePath}'");
-                                        Console.WriteLine($"PROCESS DEBUG: Game product version: '{LastRunningGameProductVersion}'");
-#endif
-                                    }
-                                    catch (Exception ex)
-                                    {
-#if DEBUG
-                                        Console.WriteLine($"PROCESS DEBUG: Failed to get process path: {ex.Message}");
-#endif
-                                        LastRunningGamePath = null;
-                                        LastRunningGameProductVersion = null;
-                                    }
-
-                                    _lastProcessId = currentPid;
-                                }
-                                // else: Same PID, use cached LastRunningGamePath
-
-                                return _cachedRunningFlag;
-                            }
-                        }
-                        // ReSharper disable once EmptyGeneralCatchClause
-                        catch
-                        {
-                        }
+                        ReadGameLocation(process);
+                        _lastProcessId = process.Id;
                     }
-                    _cachedRunningFlag = false;
-                    _lastProcessId = 0; // Clear cache when no game running
+                }
+                foreach (var process in processes)
+                    process.Dispose();
+                if (!running)
+                {
+                    _lastProcessId = 0;
                     LastRunningGameProductVersion = null;
                 }
-                return _cachedRunningFlag;
+                _cachedRunningFlag = running;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("Game process scan failed: " + ex.Message);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _lastCheckTime, Stopwatch.GetTimestamp());
+                Interlocked.Exchange(ref _scanning, 0);
+            }
+        }
+
+        // The exe lives in bin\win_x64 or bin\win_x86; the game root is the first parent holding base.scs and bin.
+        static void ReadGameLocation(Process process)
+        {
+            try
+            {
+                string exePath = process.MainModule.FileName;
+                string gameRoot = null;
+                for (var dir = new DirectoryInfo(Path.GetDirectoryName(exePath)); dir != null && dir.Parent != null; dir = dir.Parent)
+                {
+                    if (File.Exists(Path.Combine(dir.FullName, "base.scs")) && Directory.Exists(Path.Combine(dir.FullName, "bin")))
+                    {
+                        gameRoot = dir.FullName;
+                        break;
+                    }
+                }
+                LastRunningGamePath = gameRoot;
+                LastRunningGameProductVersion = FileVersionInfo.GetVersionInfo(exePath).ProductVersion;
+            }
+            catch (Exception)
+            {
+                LastRunningGamePath = null;
+                LastRunningGameProductVersion = null;
             }
         }
     }

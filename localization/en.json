@@ -1,0 +1,586 @@
+{
+  "brand.website": {
+    "text": "trucksimgps.com",
+    "context": "Muted second line under the TruckSim GPS wordmark in the PC Telemetry window header; it is the website address and links to it. Copy verbatim."
+  },
+  "devices.connected_direct": {
+    "text": "connected · direct",
+    "context": "Status next to a device name in the Linked devices list of the PC Telemetry window: the mobile device is connected right now over the local network. Lowercase, short."
+  },
+  "devices.connected_relay": {
+    "text": "connected · Relay Server",
+    "context": "Status next to a device name in the Linked devices list: the device is connected right now through the Relay Server (over the internet). 'Relay Server' is a product term, capitalize it the same way. Short."
+  },
+  "devices.count": {
+    "text": "{0} linked",
+    "context": "Counter at the right of the Linked devices card title, {0} = number of mobile devices linked to this PC (0, 1, 2...)."
+  },
+  "devices.empty": {
+    "text": "No devices linked yet.",
+    "context": "Empty state of the Linked devices card when no mobile device has been linked."
+  },
+  "devices.last_seen": {
+    "text": "last seen {0}",
+    "context": "Status next to a device that is not connected right now; {0} is a relative time such as 'just now', '3 days ago', 'yesterday' (keys time.*). Lowercase."
+  },
+  "devices.relay_tooltip": {
+    "text": "This device could not reach the PC directly, so its telemetry travels over a secure internet connection through our Relay Server. It works, with a little more delay. {0} shows how to get a direct connection.",
+    "context": "Tooltip on the (i) icon next to 'connected · Relay Server'. {0} is replaced by the link text 'Connection help' (key menu.connection_help) and must start a sentence."
+  },
+  "devices.remove": {
+    "text": "Remove",
+    "context": "Small button on each row of the Linked devices list that unlinks that mobile device from this PC. Keep very short."
+  },
+  "devices.throughput": {
+    "text": "{0} KB/s ↑ {1} KB/s ↓",
+    "context": "Live data rate appended to 'connected · Relay Server' on a Linked devices row: {0} = kilobytes per second sent to the device, {1} = received from it, both already formatted numbers like 0.9. Keep the arrows; translate only the unit if your language writes kilobytes per second differently."
+  },
+  "devices.title": {
+    "text": "Linked devices",
+    "context": "Title of the card listing the mobile devices linked to this PC."
+  },
+  "devices.unnamed": {
+    "text": "Unnamed device",
+    "context": "Fallback name for a linked mobile device that did not report a name."
+  },
+  "dialog.cancel": {
+    "text": "Cancel",
+    "context": "Button that closes a dialog of the PC Telemetry app without doing anything."
+  },
+  "dialog.no": {
+    "text": "No",
+    "context": "Button of a yes/no question dialog in the PC Telemetry app; the question text explains what No does."
+  },
+  "dialog.ok": {
+    "text": "OK",
+    "context": "Button that closes a message dialog of the PC Telemetry app (information, warning or error)."
+  },
+  "dialog.yes": {
+    "text": "Yes",
+    "context": "Button of a yes/no question dialog in the PC Telemetry app; the question text explains what Yes does."
+  },
+  "language.system": {
+    "text": "System default",
+    "context": "First entry of the Language submenu: follow the Windows display language instead of a fixed language."
+  },
+  "link.cancel": {
+    "text": "Cancel",
+    "context": "Button under the QR code that ends the pairing session and hides the code."
+  },
+  "link.code_expired": {
+    "text": "Code expired",
+    "context": "Label shown over the blurred QR code once the 2-minute pairing session has expired."
+  },
+  "link.description": {
+    "text": "Open TruckSim GPS on your phone or tablet and tap <b>Scan QR code</b>.",
+    "context": "Instruction in the Link a device panel before a QR code is generated. 'Scan QR code' is the button label in the mobile app; keep the <b> tags around its translation."
+  },
+  "link.error_cloud": {
+    "text": "Could not reach the TruckSim GPS Cloud Server. Check this PC's internet connection and try again. You can still connect using <b>Manual connection</b>.",
+    "context": "Inline error in the Link a device panel when generating a QR code failed because the PC has no internet. 'Manual connection' is the title of a section in this window (key manual.title); keep the <b> tags."
+  },
+  "link.generate": {
+    "text": "Generate QR code",
+    "context": "Primary button of the Link a device panel: creates a QR code and a 6-character code for pairing a mobile device."
+  },
+  "link.generating": {
+    "text": "Generating…",
+    "context": "Label of the same button while the QR code is being created (disabled, with a spinner)."
+  },
+  "link.no_camera": {
+    "text": "No camera? Enter this code in the app",
+    "context": "Small line under the QR code, above the 6-character pairing code, for devices without a camera (emulators)."
+  },
+  "link.show_new_code": {
+    "text": "Show a new code",
+    "context": "Button over the blurred, expired QR code that generates a fresh QR code and pairing code."
+  },
+  "link.step1": {
+    "text": "Open TruckSim GPS on your phone or tablet",
+    "context": "Step 1 of 3 shown above the QR code (numbered automatically)."
+  },
+  "link.step2": {
+    "text": "Tap <b>Scan QR code</b>",
+    "context": "Step 2 of 3 shown above the QR code. 'Scan QR code' is the button label in the mobile app; keep the <b> tags around its translation."
+  },
+  "link.step3": {
+    "text": "Point it at this screen",
+    "context": "Step 3 of 3 shown above the QR code: point the phone camera at this PC screen."
+  },
+  "link.title": {
+    "text": "Link a device",
+    "context": "Title of the panel where the user pairs a mobile device with this PC by QR code."
+  },
+  "link.try_again": {
+    "text": "Try again",
+    "context": "Button label replacing 'Generate QR code' after the generation failed."
+  },
+  "manual.connection_help_line": {
+    "text": "Trouble connecting? {0}",
+    "context": "Line at the bottom of the Manual connection section. {0} is replaced by the link text 'Connection help' (key menu.connection_help)."
+  },
+  "manual.interface": {
+    "text": "Network interface",
+    "context": "Label of the dropdown in the Manual connection section that picks which network adapter's address is shown."
+  },
+  "manual.ip": {
+    "text": "PC IP address",
+    "context": "Label of the IP address the user types into the mobile app when connecting by IP."
+  },
+  "manual.localhost": {
+    "text": "This PC (localhost)",
+    "context": "Entry in the Network interface dropdown for the loopback address 127.0.0.1, used when the app runs in an emulator on this same PC."
+  },
+  "manual.reachability": {
+    "text": "Reachability test",
+    "context": "Label of the URL the user can open on the phone or tablet to check that it can reach this PC."
+  },
+  "manual.reachability_tooltip": {
+    "text": "Open this address in the browser of your phone or tablet. If the page loads, the device can reach this PC.",
+    "context": "Tooltip on the (i) icon next to the reachability test URL."
+  },
+  "manual.title": {
+    "text": "Manual connection",
+    "context": "Title of the collapsible section with the network interface, IP address and reachability test for connecting the app by typing the IP."
+  },
+  "menu.check_updates": {
+    "text": "Check for Updates...",
+    "context": "Help menu entry that checks GitHub for a newer PC Telemetry version."
+  },
+  "menu.close": {
+    "text": "Close",
+    "context": "Tray icon menu entry that quits PC Telemetry."
+  },
+  "menu.connection_help": {
+    "text": "Connection help",
+    "context": "Link that opens the website page explaining how to connect the app to the PC (menu bar, Manual connection section, relay tooltip)."
+  },
+  "menu.discord": {
+    "text": "Get support on Discord",
+    "context": "Help menu entry opening the Discord community server."
+  },
+  "menu.github": {
+    "text": "Browse on GitHub",
+    "context": "Help menu entry opening the source code repository on GitHub."
+  },
+  "menu.help": {
+    "text": "Help",
+    "context": "Top-level menu title."
+  },
+  "menu.language": {
+    "text": "Language",
+    "context": "Submenu title (under the Server menu) listing the interface languages."
+  },
+  "menu.open": {
+    "text": "Open",
+    "context": "Tray icon menu entry that shows the window again."
+  },
+  "menu.open_log_folder": {
+    "text": "Open log folder",
+    "context": "Help menu entry that opens the folder containing the log file in Windows Explorer."
+  },
+  "menu.rerun_setup": {
+    "text": "Re-run Setup...",
+    "context": "Server menu entry that opens the setup wizard again (firewall rule, game plugin installation)."
+  },
+  "menu.server": {
+    "text": "Server",
+    "context": "Top-level menu title; 'Server' means this PC Telemetry program."
+  },
+  "menu.start_with_windows": {
+    "text": "Start with Windows",
+    "context": "Checkable menu entry (Server menu and tray menu): launch PC Telemetry automatically at Windows login."
+  },
+  "menu.website": {
+    "text": "TruckSim GPS website",
+    "context": "Help menu entry opening trucksimgps.com."
+  },
+  "plugin.browse_description": {
+    "text": "Select the {0} installation folder",
+    "context": "Instruction at the top of the Windows folder picker. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated)."
+  },
+  "plugin.copy_failed": {
+    "text": "Failed to copy the {0} plugin:\n\n{1}",
+    "context": "Error dialog when installing the plugin fails; {0} = ETS2 or ATS, {1} = the error message."
+  },
+  "plugin.copy_invalid_path": {
+    "text": "Cannot install the plugin: the {0} path is not configured or is invalid.",
+    "context": "Error dialog when Install plugin is clicked but the game folder is missing or wrong; {0} = ETS2 or ATS."
+  },
+  "plugin.copy_success": {
+    "text": "The {0} plugin was installed to:\n• {1}\n• {2}",
+    "context": "Confirmation dialog after installing the plugin; {0} = ETS2 or ATS, {1} and {2} = the two file paths written."
+  },
+  "plugin.copy_title": {
+    "text": "Game plugin",
+    "context": "Title of the dialogs about installing the game plugin."
+  },
+  "plugin.game_setup_title": {
+    "text": "{0} setup",
+    "context": "Window title of the questions the setup asks about one game's installation folder. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated)."
+  },
+  "plugin.install": {
+    "text": "Install plugin",
+    "context": "Small button in the Game plugin card that copies the telemetry plugin DLL into the game folder. Shown only when the plugin is missing."
+  },
+  "plugin.install_corrupted": {
+    "text": "Install corrupted (please reinstall)",
+    "context": "Game plugin status when the plugin files shipped with PC Telemetry are missing; the user should reinstall PC Telemetry."
+  },
+  "plugin.installed": {
+    "text": "Installed",
+    "context": "Game plugin status: the telemetry plugin is present in the game folder."
+  },
+  "plugin.invalid_folder": {
+    "text": "This folder is not a {0} installation.\n\nSelect the main game folder, the one that contains base.scs and the bin folder.",
+    "context": "Warning after the user picked a wrong folder for the game. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). 'base.scs' and 'bin' are file and folder names: copy them verbatim. Keep the blank line."
+  },
+  "plugin.invalid_folder_title": {
+    "text": "Invalid folder",
+    "context": "Title of the warning shown when the folder picked in the folder picker is not a game installation."
+  },
+  "plugin.invalid_path": {
+    "text": "Invalid path (Server > Re-run Setup)",
+    "context": "Game plugin status when the configured game folder is not a valid game installation; 'Server > Re-run Setup' names the menu path (keys menu.server, menu.rerun_setup)."
+  },
+  "plugin.keep_path": {
+    "text": "{0} is set up at this folder:\n\n{1}\n\nKeep using it?",
+    "context": "Question during Server > Re-run Setup about one game. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). {1} is the folder path. The buttons are 'Keep this folder' and 'Choose another folder'. Keep the blank lines."
+  },
+  "plugin.keep_path_no": {
+    "text": "Choose another folder",
+    "context": "Button answering plugin.keep_path: open a folder picker to choose a different game installation folder."
+  },
+  "plugin.keep_path_yes": {
+    "text": "Keep this folder",
+    "context": "Button answering plugin.keep_path: keep the current game installation folder and continue setup."
+  },
+  "plugin.not_configured": {
+    "text": "Not configured",
+    "context": "Game plugin status when the game folder was skipped during setup (game not installed)."
+  },
+  "plugin.not_detected": {
+    "text": "{0} could not be found automatically.\n\nDo you want to choose its installation folder yourself? If you skip it, you can set it up later with Server > Re-run Setup.",
+    "context": "Question in the setup when the game installation was not detected. {0} is the full game name, 'Euro Truck Simulator 2' or 'American Truck Simulator' (never translated). 'Server > Re-run Setup' is the menu path in the app: translate it exactly as the existing menu items are translated (menu Server, item Re-run Setup). The buttons are 'Choose folder' and 'Skip this game'. Keep the blank line."
+  },
+  "plugin.not_detected_browse": {
+    "text": "Choose folder",
+    "context": "Button answering plugin.not_detected: open a folder picker to locate the game installation."
+  },
+  "plugin.not_detected_skip": {
+    "text": "Skip this game",
+    "context": "Button answering plugin.not_detected: continue setup without this game; it can be configured later."
+  },
+  "plugin.not_installed": {
+    "text": "Not installed",
+    "context": "Game plugin status: the telemetry plugin is missing from the game folder."
+  },
+  "plugin.title": {
+    "text": "Game plugin",
+    "context": "Title of the card showing, for ETS2 and ATS, whether the telemetry plugin is installed in the game folder."
+  },
+  "server.not_running": {
+    "text": "Not running · {0}",
+    "context": "Red server status pill when the local HTTP server could not start; {0} = the error message from Windows."
+  },
+  "server.port_in_use": {
+    "text": "Not running · port {0} is in use",
+    "context": "Red server status pill when another program already uses the TCP port; {0} = the port number (31377)."
+  },
+  "server.retry": {
+    "text": "Retry",
+    "context": "Small button next to the red server status pill that tries to start the local server again."
+  },
+  "server.running_game": {
+    "text": "Running · {0}",
+    "context": "Green server status pill: telemetry is flowing from the simulator; {0} = the game name (Euro Truck Simulator 2 or American Truck Simulator)."
+  },
+  "server.running_starting": {
+    "text": "Running · {0} starting",
+    "context": "Teal server status pill: the game process is running but the plugin is not sending data yet; {0} = the game name."
+  },
+  "server.running_test": {
+    "text": "Running · test data",
+    "context": "Teal server status pill in developer mode: the server serves a test telemetry file instead of the game."
+  },
+  "server.title": {
+    "text": "Server",
+    "context": "Title of the small card holding the server status pill."
+  },
+  "server.waiting": {
+    "text": "Running · waiting for the simulator",
+    "context": "Amber server status pill: the server runs but no game (ETS2/ATS) process is running."
+  },
+  "setup.done_installed": {
+    "text": "PC Telemetry has been installed.\nPress OK to start it.",
+    "context": "Dialog after the setup steps all succeeded. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.done_installed_errors": {
+    "text": "PC Telemetry has been installed with errors.\nPress OK to start it.",
+    "context": "Dialog after setup when at least one step failed (the error was already shown). 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.done_title": {
+    "text": "Done",
+    "context": "Title of the dialogs shown when setup or uninstall finished."
+  },
+  "setup.done_uninstalled": {
+    "text": "PC Telemetry has been uninstalled.\nPress OK to exit.",
+    "context": "Dialog after a successful uninstall. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.done_uninstalled_errors": {
+    "text": "PC Telemetry has been uninstalled with errors.\nPress OK to exit.",
+    "context": "Dialog after an uninstall where at least one step failed. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.elevation_required": {
+    "text": "Administrator rights are needed to configure the firewall and the URL ACL.\nPlease run PC Telemetry as Administrator.",
+    "context": "Error dialog when the setup wizard could not restart itself with administrator rights. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.elevation_title": {
+    "text": "Administrator rights required",
+    "context": "Title of that dialog."
+  },
+  "setup.error_title": {
+    "text": "Setup error",
+    "context": "Title of an error dialog raised during setup."
+  },
+  "setup.firewall_failed_install": {
+    "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, open TCP port {0} in it manually.",
+    "context": "Error shown by the setup when adding the Windows Firewall rule failed. {0} is the port number. Keep the blank line."
+  },
+  "setup.firewall_failed_uninstall": {
+    "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, close TCP port {0} in it manually.",
+    "context": "Error shown by the uninstaller when removing the Windows Firewall rule failed. {0} is the port number. Keep the blank line."
+  },
+  "setup.game_running": {
+    "text": "The ETS2/ATS game must not be running during setup.\nPlease exit the game and try again.",
+    "context": "Warning dialog when Re-run Setup is chosen while the game is running."
+  },
+  "setup.help": {
+    "text": "Help",
+    "context": "Link in the setup wizard opening the GitHub project page."
+  },
+  "setup.install": {
+    "text": "Install",
+    "context": "Main button of the setup wizard that runs all setup steps."
+  },
+  "setup.network_error_title": {
+    "text": "Network error",
+    "context": "Title of the error dialog shown when the network interfaces could not be listed at startup."
+  },
+  "setup.nothing_to_uninstall": {
+    "text": "PC Telemetry is not installed, nothing to uninstall.",
+    "context": "Dialog when the uninstaller runs but no setup step is installed. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "setup.process_error_title": {
+    "text": "Process error",
+    "context": "Title of the error dialog shown when detecting the game process failed."
+  },
+  "setup.status_group": {
+    "text": "Setup status",
+    "context": "Group box title in the setup wizard listing the four setup steps with a status icon each."
+  },
+  "setup.step_acl_install": {
+    "text": "Add ACL rule for {0}",
+    "context": "Setup step: register the HTTP URL reservation (URL ACL) in Windows; {0} = the URL like http://+:31377/. Keep 'ACL' as-is."
+  },
+  "setup.step_acl_uninstall": {
+    "text": "Delete ACL rule for {0}",
+    "context": "Setup step in uninstall mode; {0} = the URL."
+  },
+  "setup.step_firewall_install": {
+    "text": "Add firewall rule for port {0}",
+    "context": "Setup step: create the Windows Firewall rule; {0} = port number (31377)."
+  },
+  "setup.step_firewall_uninstall": {
+    "text": "Delete firewall rule for port {0}",
+    "context": "Setup step in uninstall mode; {0} = port number."
+  },
+  "setup.step_plugin_install": {
+    "text": "Install ETS2/ATS telemetry plugin DLL",
+    "context": "Setup step: copy the telemetry plugin file into the game folders."
+  },
+  "setup.step_plugin_uninstall": {
+    "text": "Uninstall ETS2/ATS telemetry plugin DLL",
+    "context": "Setup step in uninstall mode: remove the telemetry plugin file from the game folders."
+  },
+  "setup.step_vcredist": {
+    "text": "Visual C++ 2022 Redistributable",
+    "context": "Setup step: the Microsoft runtime package; product name, keep as-is."
+  },
+  "setup.title": {
+    "text": "TruckSim GPS PC Telemetry Setup",
+    "context": "Title of the setup wizard window shown on first run and from Server > Re-run Setup; the version number is appended. 'TruckSim GPS PC Telemetry' is the full product name of this program; write it exactly as in tray.title."
+  },
+  "setup.uninstall": {
+    "text": "Uninstall",
+    "context": "Main button of the setup wizard in uninstall mode."
+  },
+  "setup.warning_title": {
+    "text": "Warning",
+    "context": "Generic warning dialog title."
+  },
+  "test_page.body": {
+    "text": "This device can reach PC Telemetry on this PC.",
+    "context": "Line under test_page.heading on the test web page. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
+  "test_page.heading": {
+    "text": "Connection successful",
+    "context": "Heading of the test web page this program serves at http://<this PC's IP>:31377/. A device that opens the address and sees the page can reach this PC. Short."
+  },
+  "test_page.tip": {
+    "text": "Open this same address on your phone or tablet, on the same local network as this PC. If this page appears there too, that device can see this PC.",
+    "context": "Tip at the bottom of the test web page: how to check that a mobile device on the local network (Wi-Fi) can reach this PC."
+  },
+  "time.days_ago": {
+    "text": "{0} days ago",
+    "context": "Relative time, {0} is 2 to 13."
+  },
+  "time.hours_ago": {
+    "text": "{0} h ago",
+    "context": "Relative time in hours, {0} is 1 to 23; use the short hour unit of the language."
+  },
+  "time.just_now": {
+    "text": "just now",
+    "context": "Relative time for less than a minute ago."
+  },
+  "time.minutes_ago": {
+    "text": "{0} min ago",
+    "context": "Relative time in minutes, {0} is 1 to 59; use the short minute unit of the language."
+  },
+  "time.months_ago": {
+    "text": "{0} months ago",
+    "context": "Relative time, {0} is 2 or more."
+  },
+  "time.weeks_ago": {
+    "text": "{0} weeks ago",
+    "context": "Relative time, {0} is 2 to 8."
+  },
+  "time.yesterday": {
+    "text": "yesterday",
+    "context": "Relative time for one day ago; lowercase, follows 'last seen'."
+  },
+  "tray.background": {
+    "text": "Running in the background. Double-click to open.",
+    "context": "Windows notification balloon when PC Telemetry starts minimized to the tray."
+  },
+  "tray.restore": {
+    "text": "Double-click to restore.",
+    "context": "Windows notification balloon the first time the window is minimized to the tray."
+  },
+  "tray.title": {
+    "text": "TruckSim GPS PC Telemetry",
+    "context": "Title of the tray notification balloons and the tray icon hover text."
+  },
+  "update.download_failed": {
+    "text": "Could not download the update. Please check your internet connection and try again.",
+    "context": "Error dialog when downloading the new installer failed."
+  },
+  "update.downloading": {
+    "text": "Downloading update... This may take a moment.",
+    "context": "Label in the progress dialog while the installer downloads."
+  },
+  "update.downloading_title": {
+    "text": "Downloading update",
+    "context": "Title of the download progress dialog."
+  },
+  "update.failed_title": {
+    "text": "Update failed",
+    "context": "Title of the dialogs about a failed update."
+  },
+  "update.header": {
+    "text": "A new version is available!",
+    "context": "Headline of the update dialog."
+  },
+  "update.later": {
+    "text": "Later",
+    "context": "Button in the update dialog that postpones the update."
+  },
+  "update.latest": {
+    "text": "You are running the latest version (v{0}).",
+    "context": "Dialog after a manual update check when no newer version exists; {0} = installed version like 2.0.0."
+  },
+  "update.latest_title": {
+    "text": "No update available",
+    "context": "Title of that dialog."
+  },
+  "update.launch_failed": {
+    "text": "The update was verified but could not be launched:\n\n{0}",
+    "context": "Error dialog when the downloaded installer could not be started; {0} = error message."
+  },
+  "update.no_release_notes": {
+    "text": "No release notes available.",
+    "context": "Shown in the update dialog's release notes pane when the GitHub release has no description."
+  },
+  "update.now": {
+    "text": "Update now",
+    "context": "Button in the update dialog that downloads and installs the update."
+  },
+  "update.open_failed": {
+    "text": "The downloaded update could not be opened. Please try again.",
+    "context": "Error dialog when the downloaded installer file could not be read."
+  },
+  "update.rejected": {
+    "text": "The downloaded update could not be verified and was rejected.\n\nPlease report this to support. Your current version will keep working.",
+    "context": "Error dialog when the installer's digital signature or version check failed."
+  },
+  "update.rejected_title": {
+    "text": "Update verification failed",
+    "context": "Title of that dialog."
+  },
+  "update.release_notes": {
+    "text": "Release notes",
+    "context": "Label above the release notes text in the update dialog."
+  },
+  "update.title": {
+    "text": "Update available",
+    "context": "Title of the dialog offering a newer PC Telemetry version."
+  },
+  "update.unreachable": {
+    "text": "Could not reach the update server. Please try again later.",
+    "context": "Error dialog after a manual update check when GitHub could not be contacted."
+  },
+  "update.unreachable_title": {
+    "text": "Update check failed",
+    "context": "Title of that dialog."
+  },
+  "update.view_on_github": {
+    "text": "View the full release on GitHub",
+    "context": "Link in the update dialog opening the release page."
+  },
+  "vcredist.download": {
+    "text": "Download",
+    "context": "Main button of the missing Visual C++ Redistributable dialog: opens the Microsoft download of the installer in the browser."
+  },
+  "vcredist.download_started": {
+    "text": "Download started in your browser.\n\nAfter installation completes, please restart this application.",
+    "context": "Body of the dialog shown after the Visual C++ Redistributable download opened in the browser; the app closes when the user confirms. Keep the blank line (\n\n)."
+  },
+  "vcredist.download_started_title": {
+    "text": "Download started",
+    "context": "Title of the dialog shown after the Visual C++ Redistributable download opened in the browser."
+  },
+  "vcredist.link_failed": {
+    "text": "Could not open the link.\n\nPlease visit this address manually:\n{0}",
+    "context": "Error shown when the browser could not be opened for a Visual C++ Redistributable link; {0} is the web address to copy. Keep the line breaks."
+  },
+  "vcredist.message": {
+    "text": "Microsoft Visual C++ 2015-2022 Redistributable is required but not installed.\n\nThis is needed for the telemetry plugin to communicate with ETS2/ATS.\n\nWithout it, the mobile app won't receive truck data from the simulator.",
+    "context": "Body of the missing Visual C++ Redistributable dialog. Keep the product name 'Microsoft Visual C++ 2015-2022 Redistributable' and the game abbreviations ETS2/ATS as is. Keep the blank lines (\n\n) between the three paragraphs."
+  },
+  "vcredist.more_info": {
+    "text": "More information at Microsoft",
+    "context": "Link at the bottom left of the missing Visual C++ Redistributable dialog that opens Microsoft's page about the Redistributable."
+  },
+  "vcredist.skip": {
+    "text": "Skip for now",
+    "context": "Secondary button of the missing Visual C++ Redistributable dialog: closes it without installing; the app keeps running but cannot read game data."
+  },
+  "vcredist.title": {
+    "text": "Missing dependency",
+    "context": "Window title of the dialog shown when the Microsoft Visual C++ Redistributable, which the game telemetry plugin needs, is not installed on the PC."
+  },
+  "window.title": {
+    "text": "TruckSim GPS · PC Telemetry",
+    "context": "Window title bar text; the version number is appended after it. 'PC Telemetry' is the short product name of this program."
+  }
+}

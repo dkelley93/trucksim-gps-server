@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
+using Funbit.Ets.Telemetry.Server.Helpers;
+using Funbit.Ets.Telemetry.Server.Ui;
 using Microsoft.Win32;
 
 namespace Funbit.Ets.Telemetry.Server.Setup
@@ -78,128 +80,81 @@ namespace Funbit.Ets.Telemetry.Server.Setup
 
         static void ShowInstallPrompt(IWin32Window owner)
         {
-            var dialog = new Form
+            using (var dialog = new DarkDialog { Text = L.Get("vcredist.title"), ShowInTaskbar = true, TopMost = true })
             {
-                Text = "Missing Dependency",
-                Size = new Size(500, 260),
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                StartPosition = FormStartPosition.CenterParent,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                TopMost = true
-            };
+                var icon = new DialogIcon { Kind = MessageBoxIcon.Warning, Location = new Point(24, 24) };
 
-            var iconBox = new PictureBox
-            {
-                Location = new Point(20, 20),
-                Size = new Size(48, 48),
-                Image = SystemIcons.Warning.ToBitmap()
-            };
+                var messageLabel = new Label { Text = L.Get("vcredist.message"), Location = new Point(icon.Right + 16, 24) };
+                messageLabel.Size = TextRenderer.MeasureText(messageLabel.Text, DarkTheme.Body, new Size(380, 0), TextFormatFlags.WordBreak);
 
-            var messageLabel = new Label
-            {
-                Location = new Point(80, 20),
-                Size = new Size(390, 90),
-                Text = "Microsoft Visual C++ 2015-2022 Redistributable is required but not installed.\n\n" +
-                       "This is needed for the telemetry plugin to communicate with ETS2/ATS.\n\n" +
-                       "Without it, the mobile app won't receive truck data from the simulator."
-            };
+                var footer = new Panel { BackColor = DarkTheme.Header, Height = 64, Dock = DockStyle.Bottom };
+                dialog.ClientSize = new Size(messageLabel.Right + 24, messageLabel.Bottom + 24 + footer.Height);
 
-            var downloadButton = new Button
-            {
-                Location = new Point(150, 130),
-                Size = new Size(200, 40),
-                Text = "Download",
-                UseVisualStyleBackColor = true,
-                Font = new Font("Segoe UI", 9.75F, FontStyle.Regular)
-            };
+                var infoLink = new LinkText { Text = L.Get("vcredist.more_info"), Location = new Point(22, 24) };
 
-            var infoLink = new LinkLabel
-            {
-                Location = new Point(150, 178),
-                Size = new Size(200, 20),
-                Text = "More information at Microsoft",
-                TextAlign = ContentAlignment.MiddleCenter,
-                LinkBehavior = LinkBehavior.HoverUnderline,
-                Font = new Font("Segoe UI", 8.25F)
-            };
+                var downloadButton = new DarkButton { Text = L.Get("vcredist.download"), BackColor = DarkTheme.Header, Height = 34 };
+                downloadButton.Width = Math.Max(110, DarkTheme.TextWidth(downloadButton, downloadButton.Text, downloadButton.Font) + 32);
+                downloadButton.Location = new Point(dialog.ClientSize.Width - 16 - downloadButton.Width, 15);
 
-            var cancelButton = new Button
-            {
-                Location = new Point(360, 178),
-                Size = new Size(110, 28),
-                Text = "Skip for Now",
-                DialogResult = DialogResult.Cancel,
-                UseVisualStyleBackColor = true,
-                Font = new Font("Segoe UI", 8.25F)
-            };
+                var cancelButton = new DarkButton { Text = L.Get("vcredist.skip"), Primary = false, Font = DarkTheme.Body, BackColor = DarkTheme.Header, Height = 34, DialogResult = DialogResult.Cancel };
+                cancelButton.Width = Math.Max(96, DarkTheme.TextWidth(cancelButton, cancelButton.Text, cancelButton.Font) + 32);
+                cancelButton.Location = new Point(downloadButton.Left - 8 - cancelButton.Width, 15);
 
-            // Download button - opens direct download link
-            downloadButton.Click += (s, e) =>
-            {
-                try
+                // Download button - opens direct download link
+                downloadButton.Click += (s, e) =>
                 {
-                    Process.Start(new ProcessStartInfo
+                    try
                     {
-                        FileName = VCRedistDownloadUrl,
-                        UseShellExecute = true
-                    });
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = VCRedistDownloadUrl,
+                            UseShellExecute = true
+                        });
 
-                    MessageBox.Show(dialog,
-                        "Download started in your browser.\n\n" +
-                        "After installation completes, please restart this application.",
-                        "Download Started",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
+                        DarkMessageBox.Show(dialog, L.Get("vcredist.download_started"), L.Get("vcredist.download_started_title"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    dialog.DialogResult = DialogResult.OK;
-                    dialog.Close();
+                        dialog.DialogResult = DialogResult.OK;
+                        dialog.Close();
 
-                    // Always exit the application so user must restart after installing
-                    Environment.Exit(0);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to open download link: {ex.Message}");
-                    MessageBox.Show(dialog,
-                        $"Failed to open download link.\n\n" +
-                        $"Please manually visit:\n{VCRedistDownloadUrl}",
-                        "Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                }
-            };
-
-            // Info link - opens Microsoft documentation
-            infoLink.LinkClicked += (s, e) =>
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
+                        // Always exit the application so user must restart after installing
+                        Environment.Exit(0);
+                    }
+                    catch (Exception ex)
                     {
-                        FileName = VCRedistInfoUrl,
-                        UseShellExecute = true
-                    });
-                }
-                catch (Exception ex)
+                        Log.Error($"Failed to open download link: {ex.Message}");
+                        DarkMessageBox.Show(dialog, L.Get("vcredist.link_failed", VCRedistDownloadUrl), L.Get("setup.error_title"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+
+                // Info link - opens Microsoft documentation
+                infoLink.LinkClicked += (s, e) =>
                 {
-                    Log.Error($"Failed to open info link: {ex.Message}");
-                    MessageBox.Show(dialog,
-                        $"Failed to open link.\n\n" +
-                        $"Please manually visit:\n{VCRedistInfoUrl}",
-                        "Error",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Error);
-                }
-            };
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = VCRedistInfoUrl,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Failed to open info link: {ex.Message}");
+                        DarkMessageBox.Show(dialog, L.Get("vcredist.link_failed", VCRedistInfoUrl), L.Get("setup.error_title"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
 
-            dialog.Controls.Add(iconBox);
-            dialog.Controls.Add(messageLabel);
-            dialog.Controls.Add(downloadButton);
-            dialog.Controls.Add(infoLink);
-            dialog.Controls.Add(cancelButton);
+                footer.Controls.AddRange(new Control[] { infoLink, cancelButton, downloadButton });
+                dialog.Controls.AddRange(new Control[] { icon, messageLabel, footer });
+                dialog.AcceptButton = downloadButton;
+                dialog.CancelButton = cancelButton;
+                dialog.ActiveControl = downloadButton;
 
-            dialog.ShowDialog(owner);
+                dialog.ShowDialog(owner);
+            }
         }
 
         public static bool CheckAndPromptOnStartup(IWin32Window owner)
