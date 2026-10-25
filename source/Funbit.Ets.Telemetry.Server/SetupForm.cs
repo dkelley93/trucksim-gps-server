@@ -112,12 +112,15 @@ namespace Funbit.Ets.Telemetry.Server
         {
             okButton.Enabled = false;
             _setupFinished = true;
+            bool firewallWarning = false;
 
             foreach (var step in SetupManager.Steps)
             {
                 try
                 {
-                    SetStepStatus(step, Program.UninstallMode ? step.Uninstall(this) : step.Install(this));
+                    var status = Program.UninstallMode ? step.Uninstall(this) : step.Install(this);
+                    firewallWarning |= status == SetupStatus.Warning;
+                    SetStepStatus(step, status);
                 }
                 catch (Exception ex)
                 {
@@ -127,7 +130,9 @@ namespace Funbit.Ets.Telemetry.Server
                 }
             }
 
-            string message = L.Get("setup.done_" + (Program.UninstallMode ? "uninstalled" : "installed") + (_setupFinished ? "" : "_errors"));
+            string message = _setupFinished && firewallWarning
+                ? L.Get("setup.done_installed_firewall", ConfigurationManager.AppSettings["Port"])
+                : L.Get("setup.done_" + (Program.UninstallMode ? "uninstalled" : "installed") + (_setupFinished ? "" : "_errors"));
 
             if (Program.UninstallMode)
                 Helpers.Settings.Clear();
@@ -176,10 +181,20 @@ namespace Funbit.Ets.Telemetry.Server
                         g.DrawEllipse(pen, RectangleF.Inflate(circle, -1, -1));
                     return;
                 }
+                float c = Width / 2f;
+                if (_status == SetupStatus.Warning)
+                {
+                    using (var brush = new SolidBrush(DarkTheme.AmberBg))
+                        g.FillEllipse(brush, circle);
+                    using (var pen = new Pen(DarkTheme.Amber, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+                        g.DrawLine(pen, c, c - 5, c, c + 1);
+                    using (var dot = new SolidBrush(DarkTheme.Amber))
+                        g.FillEllipse(dot, c - 1.4f, c + 3.6f, 2.8f, 2.8f);
+                    return;
+                }
                 bool done = _status == SetupStatus.Installed;
                 using (var brush = new SolidBrush(done ? DarkTheme.GreenBg : DarkTheme.RedBg))
                     g.FillEllipse(brush, circle);
-                float c = Width / 2f;
                 using (var pen = new Pen(done ? DarkTheme.Green : DarkTheme.Red, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
                 {
                     if (done)

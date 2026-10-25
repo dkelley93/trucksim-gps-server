@@ -319,6 +319,10 @@
     "text": "PC Telemetry has been installed with errors.\nPress OK to start it.",
     "context": "Dialog after setup when at least one step failed (the error was already shown). 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
   },
+  "setup.done_installed_firewall": {
+    "text": "PC Telemetry has been installed.\n\nWindows Firewall could not be set up, but your phone can still connect: link it with the QR code.\n\nFor a direct connection on your Wi-Fi, allow TCP port {0} in your firewall.\n\nPress OK to start it.",
+    "context": "Dialog after setup when every step worked except adding the Windows Firewall rule. This is not an error: a phone linked with the QR code connects through our servers; only the direct connection on the same Wi-Fi needs the port open in the firewall (Windows Firewall or an antivirus firewall). {0} is the port number. Keep the blank lines. 'PC Telemetry' is the short product name of this program; write it exactly as in window.title."
+  },
   "setup.done_title": {
     "text": "Done",
     "context": "Title of the dialogs shown when setup or uninstall finished."
@@ -342,10 +346,6 @@
   "setup.error_title": {
     "text": "Setup error",
     "context": "Title of an error dialog raised during setup."
-  },
-  "setup.firewall_failed_install": {
-    "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, open TCP port {0} in it manually.",
-    "context": "Error shown by the setup when adding the Windows Firewall rule failed. {0} is the port number. Keep the blank line."
   },
   "setup.firewall_failed_uninstall": {
     "text": "Could not configure Windows Firewall.\n\nIf you use another firewall, close TCP port {0} in it manually.",

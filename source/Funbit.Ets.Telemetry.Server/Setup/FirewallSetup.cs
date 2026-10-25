@@ -42,6 +42,13 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                 Log.Error(ex);
                 _status = SetupStatus.Failed;
             }
+
+            // A phone linked by QR code connects through the relay without the rule, so a failed install
+            // doesn't reopen the setup at every start; the next update or Rerun Setup tries again.
+            if (_status == SetupStatus.Installed)
+                SetHadErrors(false);
+            else if (Settings.Instance.FirewallSetupHadErrors)
+                _status = SetupStatus.Warning;
         }
 
         public SetupStatus Status => _status;
@@ -91,17 +98,24 @@ namespace Funbit.Ets.Telemetry.Server.Setup
                     "Failed to add UDP port Firewall rule");
 
                 _status = SetupStatus.Installed;
+                SetHadErrors(false);
             }
             catch (Exception ex)
             {
-                _status = SetupStatus.Failed;
+                _status = SetupStatus.Warning;
                 Log.Error(ex);
-                Settings.Instance.FirewallSetupHadErrors = true;
-                Settings.Instance.Save();
-                throw new Exception(L.Get("setup.firewall_failed_install", ConfigurationManager.AppSettings["Port"]), ex);
+                SetHadErrors(true);
             }
 
             return _status;
+        }
+
+        static void SetHadErrors(bool value)
+        {
+            if (Settings.Instance.FirewallSetupHadErrors == value)
+                return;
+            Settings.Instance.FirewallSetupHadErrors = value;
+            Settings.Instance.Save();
         }
 
         public SetupStatus Uninstall(IWin32Window owner)

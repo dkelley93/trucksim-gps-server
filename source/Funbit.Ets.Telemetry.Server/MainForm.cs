@@ -442,7 +442,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Environment.Exit(0);
                 }
 
-                if (Program.UninstallMode || SetupManager.Steps.Any(s => s.Status != SetupStatus.Installed))
+                if (Program.UninstallMode || SetupManager.Steps.Any(s => s.Status != SetupStatus.Installed && s.Status != SetupStatus.Warning))
                 {
                     var result = new SetupForm().ShowDialog(this);
                     if (result == DialogResult.Abort)
