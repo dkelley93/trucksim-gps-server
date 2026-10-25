@@ -111,6 +111,7 @@ namespace Funbit.Ets.Telemetry.Server
             _pairing = new PairingSessionService(CloudConfig.ApiBaseUrl, _settings.PcId, CloudConfig.Port, ConnectCandidates, TimeSpan.FromMinutes(2));
             InitializeComponent();
             BuildUi();
+            Resize += MainForm_Resize;
             _showExistingInstanceMessage = RegisterWindowMessage(Program.ShowExistingInstanceMessage);
         }
 
