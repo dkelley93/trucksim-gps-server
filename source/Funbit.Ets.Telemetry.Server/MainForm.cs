@@ -50,7 +50,7 @@ namespace Funbit.Ets.Telemetry.Server
         PairingSessionService _pairing;
         PresenceClient _presence;
         MinimalHttpServer _server;
-        readonly WaveOutVoiceAudio _voiceAudio = new WaveOutVoiceAudio();
+        readonly WasapiVoiceAudio _voiceAudio = new WasapiVoiceAudio();
         VoiceEndpoints _voice;
         string _serverError;
         DateTime _lastUpdateCheckUtc;

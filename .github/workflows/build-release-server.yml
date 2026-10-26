@@ -74,7 +74,7 @@ jobs:
             ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/MessagePack.Annotations.dll
             ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/MessagePack.dll
             ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/NAudio.Core.dll
-            ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/NAudio.WinMM.dll
+            ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/NAudio.Wasapi.dll
             ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/NLayer.dll
             ${{ github.workspace }}/source/Funbit.Ets.Telemetry.Server/bin/Release/dependencies/QRCoder.dll
           file-digest: SHA256
