@@ -4,6 +4,7 @@
     {
         Uninstalled,
         Installed,
-        Failed
+        Failed,
+        Warning
     }
 }

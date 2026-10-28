@@ -64,6 +64,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         static readonly int[] ReconnectSeconds = { 30, 120, 600, 1800 };
         static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(20);
         static readonly TimeSpan SteadyPark = TimeSpan.FromMinutes(5);
+        static readonly TimeSpan FreshTokenMargin = TimeSpan.FromDays(7);
         const int MaxFrameBytes = 64 * 1024;
         const int CloseReplaced = 4001;
         const int CloseFull = 4003;
@@ -116,6 +117,25 @@ namespace Funbit.Ets.Telemetry.Server.Services
         public string ParkedRelay { get; private set; }
 
         public event Action Connected;
+
+        public static bool IsFreshToken(string token, DateTime now)
+        {
+            byte[] bytes;
+            try
+            {
+                bytes = string.IsNullOrEmpty(token) ? null : Crypto.FromBase64Url(token);
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+            if (bytes == null || bytes.Length != 56)
+                return false;
+            long exp = 0;
+            for (int i = 16; i < 24; i++)
+                exp = exp << 8 | bytes[i];
+            return exp - new DateTimeOffset(now).ToUnixTimeSeconds() > (long)FreshTokenMargin.TotalSeconds;
+        }
 
         public void Update(bool serverRunning, bool game, WindowPresence window)
         {

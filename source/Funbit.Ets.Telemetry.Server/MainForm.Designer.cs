@@ -66,7 +66,6 @@ namespace Funbit.Ets.Telemetry.Server
             this.Text = "TruckSim GPS PC Telemetry";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.MainForm_FormClosed);
             this.Load += new System.EventHandler(this.MainForm_Load);
-            this.Resize += new System.EventHandler(this.MainForm_Resize);
             this.contextMenuStrip.ResumeLayout(false);
             this.ResumeLayout(false);
         }

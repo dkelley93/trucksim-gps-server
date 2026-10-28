@@ -50,7 +50,7 @@ namespace Funbit.Ets.Telemetry.Server
         PairingSessionService _pairing;
         PresenceClient _presence;
         MinimalHttpServer _server;
-        readonly WaveOutVoiceAudio _voiceAudio = new WaveOutVoiceAudio();
+        readonly WasapiVoiceAudio _voiceAudio = new WasapiVoiceAudio();
         VoiceEndpoints _voice;
         string _serverError;
         DateTime _lastUpdateCheckUtc;
@@ -111,6 +111,7 @@ namespace Funbit.Ets.Telemetry.Server
             _pairing = new PairingSessionService(CloudConfig.ApiBaseUrl, _settings.PcId, CloudConfig.Port, ConnectCandidates, TimeSpan.FromMinutes(2));
             InitializeComponent();
             BuildUi();
+            Resize += MainForm_Resize;
             _showExistingInstanceMessage = RegisterWindowMessage(Program.ShowExistingInstanceMessage);
         }
 
@@ -441,7 +442,7 @@ namespace Funbit.Ets.Telemetry.Server
                     Environment.Exit(0);
                 }
 
-                if (Program.UninstallMode || SetupManager.Steps.Any(s => s.Status != SetupStatus.Installed))
+                if (Program.UninstallMode || SetupManager.Steps.Any(s => s.Status != SetupStatus.Installed && s.Status != SetupStatus.Warning))
                 {
                     var result = new SetupForm().ShowDialog(this);
                     if (result == DialogResult.Abort)
@@ -511,7 +512,7 @@ namespace Funbit.Ets.Telemetry.Server
         {
             try
             {
-                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices, _voice);
+                _server = new MinimalHttpServer(CloudConfig.Port, _pairing, _devices, _voice, _presence);
                 _server.Start();
                 _serverError = null;
             }
@@ -613,7 +614,7 @@ namespace Funbit.Ets.Telemetry.Server
                 _linkPanel.Tick();
 
                 bool pairingActive = _pairing.State == PairingState.Generating || _pairing.State == PairingState.Active;
-                _presence.SetWanted(_server != null && pairingActive);
+                _presence.SetWanted(_server != null && (pairingActive || _presence.WarmingUp));
                 UpdateStandby();
             }
             catch (Exception ex)

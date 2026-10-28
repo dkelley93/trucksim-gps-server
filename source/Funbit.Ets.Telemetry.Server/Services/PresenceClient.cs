@@ -25,6 +25,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         static readonly TimeSpan RelayRemeasure = TimeSpan.FromMinutes(10);
         static readonly TimeSpan FailedRelayHold = TimeSpan.FromSeconds(90);
         static readonly TimeSpan MeasurementWait = TimeSpan.FromSeconds(3);
+        static readonly TimeSpan WarmupWindow = TimeSpan.FromSeconds(60);
         const int MeasureRetryFirstSeconds = 15;
         const int MeasureRetryMaxSeconds = 120;
         const int MaxMeasureRetries = 5;
@@ -47,6 +48,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
         CancellationTokenSource _runCts;
         Timer _measureRetryTimer;
         DateTime _measuredAt;
+        DateTime _warmupUntil;
         volatile string _relayUrl;
         Task _measurement = Task.CompletedTask;
         bool _measuring;
@@ -85,6 +87,30 @@ namespace Funbit.Ets.Telemetry.Server.Services
         }
 
         public bool IsConnected => _hub?.State == HubConnectionState.Connected;
+
+        public bool HasStandbyToken => !string.IsNullOrEmpty(_settings.StandbyToken);
+
+        public bool HasFreshStandbyToken => StandbyClient.IsFreshToken(_settings.StandbyToken, DateTime.UtcNow);
+
+        public bool WarmingUp
+        {
+            get
+            {
+                lock (_lock)
+                    return DateTime.UtcNow < _warmupUntil;
+            }
+        }
+
+        public bool OpenForWarmup()
+        {
+            lock (_lock)
+            {
+                if (DateTime.UtcNow >= _warmupUntil)
+                    Log.Info("Pairing line opened to fetch a standby token");
+                _warmupUntil = DateTime.UtcNow + WarmupWindow;
+            }
+            return IsConnected;
+        }
 
         public void UpdateStandby(bool serverRunning, bool game, WindowPresence window) => _standby.Update(serverRunning, game, window);
 
@@ -419,7 +445,11 @@ namespace Funbit.Ets.Telemetry.Server.Services
 
         void StoreStandbyToken(string token)
         {
-            if (string.IsNullOrEmpty(token) || token == _settings.StandbyToken)
+            if (string.IsNullOrEmpty(token))
+                return;
+            lock (_lock)
+                _warmupUntil = DateTime.MinValue;
+            if (token == _settings.StandbyToken)
                 return;
             _settings.StandbyToken = token;
             _settings.Save();
@@ -436,7 +466,7 @@ namespace Funbit.Ets.Telemetry.Server.Services
                 Log.InfoFormat("Handshake from device {0}... (pairing: {1}): {2}", deviceId.Substring(0, 8), pairing, answer.Ok ? "accepted" : "rejected");
                 string ticket = await reply(answer, answer.Ok ? relayUrl : "");
                 MeasureIfStale();
-                if (!answer.Ok || string.IsNullOrEmpty(ticket) || relayUrl.Length == 0)
+                if (!answer.Ok || answer.Warmup || string.IsNullOrEmpty(ticket) || relayUrl.Length == 0)
                     return;
 
                 if (!pairing)
